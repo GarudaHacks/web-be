@@ -17,6 +17,7 @@ module.exports = {
     "max-len": "off",
     "new-cap": "off",
     "quotes": ["error", "double", {"allowTemplateLiterals": true}],
+    "linebreak-style": ["error", process.platform === "win32" ? "windows" : "unix"],
   },
   overrides: [
     {
