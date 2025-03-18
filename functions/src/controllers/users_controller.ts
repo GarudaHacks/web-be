@@ -1,9 +1,26 @@
-const {db} = require("../config/firebase");
+import {Request, Response} from "express";
+import {db} from "../config/firebase";
+
+interface User {
+  firstName: string;
+  lastName: string;
+  email: string;
+  dateOfBirth?: string;
+  school?: string;
+  grade?: number | null;
+  year?: number | null;
+  genderIdentity?: string;
+  status?: string;
+  portfolio?: string;
+  github?: string;
+  linkedin?: string;
+  admin?: boolean;
+}
 
 /**
  * Helper for standardizing user data
  */
-const formatUser = (data) => ({
+const formatUser = (data: Partial<User>): User => ({
   firstName: data.firstName || "",
   lastName: data.lastName || "",
   email: data.email || "",
@@ -22,28 +39,32 @@ const formatUser = (data) => ({
 /**
  * Creates new user in Firestore
  */
-exports.createUser = async (req, res) => {
+export const createUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const requiredFields = ["email", "firstName", "lastName"];
+    const requiredFields: (keyof User)[] = ["email", "firstName", "lastName"];
 
     for (const field of requiredFields) {
       if (!req.body[field]) {
-        return res.status(400).json({error: `Missing required field: ${field}`});
+        res.status(400).json({error: `Missing required field: ${field}`});
+        return;
       }
     }
 
-    const userData = formatUser(req.body);
+    const userData: User = formatUser(req.body);
     const userRef = await db.collection("users").add({...userData});
     res.json({success: true, userId: userRef.id});
   } catch (error) {
-    res.status(500).json({error: error.message});
+    res.status(500).json({error: (error as Error).message});
   }
 };
 
 /**
  * Fetch all users from Firestore
  */
-exports.getUsers = async (req, res) => {
+export const getUsers = async (req: Request, res: Response): Promise<void> => {
   try {
     const snapshot = await db.collection("users").get();
     const users = snapshot.docs.map((doc) => ({
@@ -52,6 +73,6 @@ exports.getUsers = async (req, res) => {
     }));
     res.json(users);
   } catch (error) {
-    res.status(500).json({error: error.message});
+    res.status(500).json({error: (error as Error).message});
   }
 };
