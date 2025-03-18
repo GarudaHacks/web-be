@@ -38,6 +38,5 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const functions = __importStar(require("firebase-functions"));
 const server_1 = __importDefault(require("./server"));
-// Export as Firebase Cloud Function
 exports.app = functions.https.onRequest(server_1.default);
 //# sourceMappingURL=index.js.map
