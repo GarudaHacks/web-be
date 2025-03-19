@@ -11,6 +11,7 @@ module.exports = {
     "plugin:import/typescript",
     "google",
     "plugin:@typescript-eslint/recommended",
+    "prettier",
   ],
   parser: "@typescript-eslint/parser",
   parserOptions: {
@@ -36,5 +37,6 @@ module.exports = {
     "max-len": "off",
     "new-cap": "off",
     "linebreak-style": ["error", process.platform === "win32" ? "windows" : "unix"],
+    "no-explicit-any": "off",
   },
 };
