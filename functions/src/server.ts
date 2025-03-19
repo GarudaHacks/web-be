@@ -1,4 +1,4 @@
-import express, {Request, Response, NextFunction} from "express";
+import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
 import routes from "./routes";
 
@@ -16,7 +16,7 @@ app.get("/", (req: Request, res: Response) => {
   res.send("API is running");
 });
 
-if (process.env.NODE_ENV !== "production") {
+if (process.env.FUNCTIONS_EMULATOR) {
   app.listen(2020, () => {
     console.log("Server running on http://localhost:2020");
   });

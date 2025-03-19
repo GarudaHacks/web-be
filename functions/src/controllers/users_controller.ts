@@ -1,5 +1,5 @@
-import {Request, Response} from "express";
-import {db} from "../config/firebase";
+import { Request, Response } from "express";
+import { db } from "../config/firebase";
 
 interface User {
   firstName: string;
@@ -48,16 +48,16 @@ export const createUser = async (
 
     for (const field of requiredFields) {
       if (!req.body[field]) {
-        res.status(400).json({error: `Missing required field: ${field}`});
+        res.status(400).json({ error: `Missing required field: ${field}` });
         return;
       }
     }
 
     const userData: User = formatUser(req.body);
-    const userRef = await db.collection("users").add({...userData});
-    res.json({success: true, userId: userRef.id});
+    const userRef = await db.collection("users").add({ ...userData });
+    res.json({ success: true, userId: userRef.id });
   } catch (error) {
-    res.status(500).json({error: (error as Error).message});
+    res.status(500).json({ error: (error as Error).message });
   }
 };
 
@@ -73,6 +73,6 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
     }));
     res.json(users);
   } catch (error) {
-    res.status(500).json({error: (error as Error).message});
+    res.status(500).json({ error: (error as Error).message });
   }
 };
