@@ -1,12 +1,25 @@
 import { Request, Response } from "express";
 import { admin, db, auth } from "../config/firebase";
 import axios from "axios";
+import validator from "validator";
 
 /**
  * Logs in user
  */
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
+
+  if (!validator.isEmail(email)) {
+    res.status(400).json({ error: "Invalid email" });
+    return;
+  }
+
+  if (!validator.isLength(password, { min: 6 })) {
+    res
+      .status(400)
+      .json({ error: "Password must be at least 6 characters long" });
+    return;
+  }
 
   try {
     const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
@@ -60,6 +73,18 @@ export const login = async (req: Request, res: Response): Promise<void> => {
  */
 export const register = async (req: Request, res: Response): Promise<void> => {
   const { name, email, password } = req.body;
+
+  if (!validator.isEmail(email)) {
+    res.status(400).json({ error: "Invalid email" });
+    return;
+  }
+
+  if (!validator.isLength(password, { min: 6 })) {
+    res
+      .status(400)
+      .json({ error: "Password must be at least 6 characters long" });
+    return;
+  }
 
   try {
     const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
