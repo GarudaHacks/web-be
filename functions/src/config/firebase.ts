@@ -7,12 +7,11 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+const auth = admin.auth();
 
 if (process.env.FUNCTIONS_EMULATOR) {
-  console.log("Populating fake data");
-  
   const populator = new FakeDataPopulator(db);
   populator.generateFakeData();
 }
 
-export { admin, db };
+export { admin, db, auth };
