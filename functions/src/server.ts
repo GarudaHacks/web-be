@@ -18,11 +18,4 @@ app.get("/", (req: Request, res: Response) => {
   res.send("API is running");
 });
 
-// Server
-if (process.env.FUNCTIONS_EMULATOR) {
-  app.listen(2020, () => {
-    console.log("Server running on http://localhost:2020");
-  });
-}
-
 export default app;
