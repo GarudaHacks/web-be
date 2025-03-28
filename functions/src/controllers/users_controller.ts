@@ -37,7 +37,7 @@ const formatUser = (data: Partial<User>): User => ({
 });
 
 /**
- * Creates new user in Firestore
+ * Creates new user
  */
 export const createUser = async (
   req: Request,
@@ -62,7 +62,7 @@ export const createUser = async (
 };
 
 /**
- * Fetch all users from Firestore
+ * Fetch all users
  */
 export const getUsers = async (req: Request, res: Response): Promise<void> => {
   try {
