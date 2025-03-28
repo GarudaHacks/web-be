@@ -1,7 +1,9 @@
-import * as functions from "firebase-functions";
+import { onRequest } from "firebase-functions/v2/https";
 import * as dotenv from "dotenv";
 import app from "./server";
 
 dotenv.config();
 
-exports.app = functions.https.onRequest(app);
+export const api = onRequest((request, response) => {
+  app(request, response);
+});

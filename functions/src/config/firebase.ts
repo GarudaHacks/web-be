@@ -9,7 +9,7 @@ admin.initializeApp({
 const db = admin.firestore();
 const auth = admin.auth();
 
-if (process.env.FUNCTIONS_EMULATOR) {
+if (process.env.NODE_ENV === "development") {
   const populator = new FakeDataPopulator(db);
   populator.generateFakeData();
 }

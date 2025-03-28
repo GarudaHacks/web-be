@@ -1,8 +1,6 @@
 import * as functions from "firebase-functions";
 import * as admin from "firebase-admin";
-import express, { Request, Response, NextFunction } from "express";
-import cookieParser from "cookie-parser";
-import cors from "cors";
+import { Request, Response, NextFunction } from "express";
 
 // Extend Express Request interface to include the user property.
 declare global {
@@ -13,14 +11,6 @@ declare global {
     }
   }
 }
-
-const app = express();
-
-// Setup middleware
-const corsMiddleware = cors({ origin: true });
-
-app.use(corsMiddleware);
-app.use(cookieParser());
 
 /**
  * Middleware that validates Firebase ID Tokens passed in the Authorization HTTP header or as a __session cookie.
@@ -76,13 +66,3 @@ export const validateFirebaseIdToken = async (
     res.status(403).send("Unauthorized");
   }
 };
-
-app.use(validateFirebaseIdToken);
-
-app.get("/hello", (req: Request, res: Response) => {
-  // Use optional chaining in case req.user is undefined.
-  res.send(`Hello ${req.user?.name || "user"}`);
-});
-
-// Export the Express app as an HTTPS Firebase Function.
-export const appFunction = functions.https.onRequest(app);
