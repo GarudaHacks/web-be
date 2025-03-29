@@ -1,7 +1,28 @@
 import { Request, Response } from "express";
-import { admin, db, auth } from "../config/firebase";
+import { db, auth } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
+import { FieldValue } from "firebase-admin/firestore";
+
+const validateEmailAndPassword = (
+  email: string,
+  password: string,
+  res: Response
+): boolean => {
+  if (!validator.isEmail(email)) {
+    res.status(400).json({ error: "Invalid email" });
+    return false;
+  }
+
+  if (!validator.isLength(password, { min: 6 })) {
+    res
+      .status(400)
+      .json({ error: "Password must be at least 6 characters long" });
+    return false;
+  }
+
+  return true;
+};
 
 /**
  * Logs in user
@@ -9,53 +30,30 @@ import validator from "validator";
 export const login = async (req: Request, res: Response): Promise<void> => {
   const { email, password } = req.body;
 
-  if (!validator.isEmail(email)) {
-    res.status(400).json({ error: "Invalid email" });
-    return;
-  }
-
-  if (!validator.isLength(password, { min: 6 })) {
-    res
-      .status(400)
-      .json({ error: "Password must be at least 6 characters long" });
-    return;
-  }
+  if (!validateEmailAndPassword(email, password, res)) return;
 
   try {
-    const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
-    const user = await db.collection("users").where("email", "==", email).get();
-    if (user.empty) {
-      res.status(404).json({ error: "User not found" });
-      return;
-    }
+    const url = isEmulator
+      ? "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=dummy-key"
+      : `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.WEB_API_KEY}`;
 
-    const userDoc = user.docs[0];
-    const userId = userDoc.id;
-    const userData = userDoc.data();
+    const token = (
+      await axios.post(url, {
+        email,
+        password,
+        returnSecureToken: true,
+      })
+    ).data;
 
-    let token;
-    if (isEmulator) {
-      const customToken = await auth.createCustomToken(userId);
-      token = {
-        idToken: customToken,
-        refreshToken: null,
-        expiresIn: 3600,
-      };
-    } else {
-      token = (
-        await axios.post(
-          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.WEB_API_KEY}`,
-          { email, password, returnSecureToken: true }
-        )
-      ).data;
-    }
+    const user = await auth.getUserByEmail(email);
 
     res.status(200).json({
       message: "Login successful",
       user: {
-        email: userData.email,
-        displayName: userData.name,
+        email: user.email,
+        displayName: user.displayName,
       },
       idToken: token.idToken,
       refreshToken: token.refreshToken,
@@ -74,20 +72,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 export const register = async (req: Request, res: Response): Promise<void> => {
   const { name, email, password } = req.body;
 
-  if (!validator.isEmail(email)) {
-    res.status(400).json({ error: "Invalid email" });
-    return;
-  }
-
-  if (!validator.isLength(password, { min: 6 })) {
-    res
-      .status(400)
-      .json({ error: "Password must be at least 6 characters long" });
-    return;
-  }
+  if (!validateEmailAndPassword(email, password, res)) return;
 
   try {
-    const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     const user = await auth.createUser({
       displayName: name,
@@ -95,27 +83,32 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       password,
     });
 
-    let token;
-    if (isEmulator) {
-      const customToken = await auth.createCustomToken(user.uid);
-      token = {
-        idToken: customToken,
-        refreshToken: null,
-        expiresIn: 3600,
-      };
-    } else {
-      token = (
-        await axios.post(
-          `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.WEB_API_KEY}`,
-          { email, password, returnSecureToken: true }
-        )
-      ).data;
-    }
+    const customToken = await auth.createCustomToken(user.uid);
+
+    const url = isEmulator
+      ? "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=dummy-key"
+      : `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${process.env.WEB_API_KEY}`;
+
+    const token = (
+      await axios.post(url, { token: customToken, returnSecureToken: true })
+    ).data;
 
     await db.collection("users").doc(user.uid).set({
-      email,
-      name,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      email: user.email,
+      first_name: user.displayName,
+      last_name: null,
+      date_of_birth: null,
+      education: null,
+      school: null,
+      grade: null,
+      year: null,
+      gender_identity: null,
+      status: "not applicable",
+      portfolio: null,
+      github: null,
+      linkedin: null,
+      admin: false,
+      created_at: FieldValue.serverTimestamp(),
     });
 
     res.status(201).json({

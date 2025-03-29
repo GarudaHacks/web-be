@@ -1,6 +1,8 @@
 import * as admin from "firebase-admin";
 import * as serviceAccount from "../../service-key.json";
-import { FakeDataPopulator } from "../utils/fake_data_populator";
+import * as dotenv from "dotenv";
+
+dotenv.config();
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
@@ -9,9 +11,15 @@ admin.initializeApp({
 const db = admin.firestore();
 const auth = admin.auth();
 
-if (process.env.NODE_ENV === "development") {
-  const populator = new FakeDataPopulator(db);
-  populator.generateFakeData();
-}
+/**
+ * Populate Firestore with fake data if running in emulator
+ * This is useful for testing the API locally
+ * Comment out this block if you don't want to use fake data
+*/
+// import { FakeDataPopulator } from "../utils/fake_data_populator";
+// if (process.env.FIRESTORE_EMULATOR_HOST !== undefined) {
+//   const populator = new FakeDataPopulator(db);
+//   populator.generateFakeData();
+// }
 
 export { admin, db, auth };
