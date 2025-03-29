@@ -33,7 +33,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   if (!validateEmailAndPassword(email, password, res)) return;
 
   try {
-    const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     const url = isEmulator
       ? "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=dummy-key"
@@ -75,7 +75,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   if (!validateEmailAndPassword(email, password, res)) return;
 
   try {
-    const isEmulator = process.env.FUNCTIONS_EMULATOR === "true";
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     const user = await auth.createUser({
       displayName: name,
