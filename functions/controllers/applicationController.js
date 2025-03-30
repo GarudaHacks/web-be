@@ -3,7 +3,7 @@ const validator = require("validator");
 const Busboy = require('busboy');
 const bucket = admin.storage().bucket();
 
-const AUTH_USER = "ryan";
+const AUTH_USER_UID = "0dwuFh4PDfR1v7cjO1oUwvoU7Ey1";
 
 // upload file
 const USER_UPLOAD_PATH = `users/uploads/`;
@@ -62,11 +62,9 @@ exports.patchApplication = async (req, res) => {
       });
     }
 
-    const state = req.body.state;
-
     const dataToSave = await constructDataToSave(req);
     console.log("Data to save", dataToSave)
-    await saveData(dataToSave);
+    await saveData(dataToSave, req.body.state);
 
     res.json({ success: true, data: dataToSave });
   } catch (error) {
@@ -74,21 +72,37 @@ exports.patchApplication = async (req, res) => {
   }
 };
 
-async function saveData(dataToSave) {
+async function saveData(dataToSave, state) {
   try {
-    const docRef = db.collection('applications').doc(AUTH_USER);
-    const doc = await docRef.get();
-    
-    const data = {
-      ...dataToSave,
-      updatedAt: new Date().toISOString(),
-    };
+    if (state === 'PROFILE') {
+      const userRef = db.collection('users').doc(AUTH_USER_UID);
+      const userDoc = await userRef.get();
 
-    if (!doc.exists) {
-      data.createdAt = new Date().toISOString();
+      const data = {
+        ...dataToSave,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (!userDoc.exists) {
+        data.createdAt = new Date().toISOString();
+      }
+
+      await userRef.set(data, { merge: true });
+    } else {
+      const docRef = db.collection('applications').doc(AUTH_USER_UID);
+      const doc = await docRef.get();
+
+      const data = {
+        ...dataToSave,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (!doc.exists) {
+        data.createdAt = new Date().toISOString();
+      }
+
+      await docRef.set(data, { merge: true });
     }
-
-    await docRef.set(data, { merge: true });
   } catch (error) {
     console.error('Error saving application:', error);
     throw new Error('Failed to save application');
@@ -101,7 +115,7 @@ async function constructDataToSave(req) {
   for (const question of questions) {
     const fieldValue = req.body[question.id];
     if (question.type === "file") {
-      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${AUTH_USER}_${QUESTION_ID}.${req.body[question.id].split('.').pop()}`;
+      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${AUTH_USER_UID}_${QUESTION_ID}.${req.body[question.id].split('.').pop()}`;
     } else {
       dataToSave[question.id] = fieldValue;
     }
@@ -196,7 +210,7 @@ async function validateFileUploaded(fieldValue, question) {
 
   try {
     // check in firebase storage
-    const fileName = `${AUTH_USER}_${QUESTION_ID}.${fieldValue.split('.').pop()}`;
+    const fileName = `${AUTH_USER_UID}_${QUESTION_ID}.${fieldValue.split('.').pop()}`;
     const fullFilename = `${USER_UPLOAD_PATH}${fileName}`
     const fileUpload = bucket.file(fullFilename);
 
@@ -475,7 +489,7 @@ exports.uploadFile = async (req, res) => {
     }
 
     // upload file to firebase
-    const fileName = `${USER_UPLOAD_PATH}${AUTH_USER}_${QUESTION_ID}.${fileData.originalname.split('.').pop()}`;
+    const fileName = `${USER_UPLOAD_PATH}${AUTH_USER_UID}_${QUESTION_ID}.${fileData.originalname.split('.').pop()}`;
     const fileUpload = bucket.file(fileName);
 
     // check if file exists and delete it
@@ -488,7 +502,7 @@ exports.uploadFile = async (req, res) => {
       metadata: {
         contentType: fileData.mimetype,
         metadata: {
-          uploadedBy: AUTH_USER,
+          uploadedBy: AUTH_USER_UID,
           questionId: QUESTION_ID,
           uploadedAt: new Date().toISOString(),
           originalName: fileData.originalname,
