@@ -3,6 +3,7 @@ import { db, auth } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
 import { FieldValue } from "firebase-admin/firestore";
+import { convertResponseToSnakeCase } from "../utils/camel_case";
 
 const validateEmailAndPassword = (
   email: string,
@@ -49,20 +50,22 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const user = await auth.getUserByEmail(email);
 
-    res.status(200).json({
-      message: "Login successful",
-      user: {
-        email: user.email,
-        displayName: user.displayName,
-      },
-      idToken: token.idToken,
-      refreshToken: token.refreshToken,
-      expiresIn: token.expiresIn,
-    });
+    res.status(200).json(
+      convertResponseToSnakeCase({
+        message: "Login successful",
+        user: {
+          email: user.email,
+          displayName: user.displayName,
+        },
+        idToken: token.idToken,
+        refreshToken: token.refreshToken,
+        expiresIn: token.expiresIn,
+      })
+    );
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: "Invalid email or password" });
   }
 };
 
@@ -111,19 +114,62 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       created_at: FieldValue.serverTimestamp(),
     });
 
-    res.status(201).json({
-      message: "Registration successful",
-      user: {
-        email: user.email,
-        displayName: user.displayName,
-      },
-      idToken: token.idToken,
-      refreshToken: token.refreshToken,
-      expiresIn: token.expiresIn,
-    });
+    res.status(201).json(
+      convertResponseToSnakeCase({
+        message: "Registration successful",
+        user: {
+          email: user.email,
+          displayName: user.displayName,
+        },
+        idToken: token.idToken,
+        refreshToken: token.refreshToken,
+        expiresIn: token.expiresIn,
+      })
+    );
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
     res.status(400).json({ error: err.message });
+  }
+};
+
+export const refreshToken = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { refreshToken } = req.body;
+
+  if (!refreshToken) {
+    res.status(400).json({ error: "Refresh token is required" });
+    return;
+  }
+
+  try {
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
+
+    const url = isEmulator
+      ? "http://127.0.0.1:9099/securetoken.googleapis.com/v1/token?key=dummy-key"
+      : `https://securetoken.googleapis.com/v1/token?key=${process.env.WEB_API_KEY}`;
+
+    const token = (
+      await axios.post(url, {
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      })
+    ).data;
+
+    res.status(200).json(
+      convertResponseToSnakeCase({
+        accessToken: token.id_token,
+        expiresIn: token.expires_in,
+        refreshToken: token.refresh_token,
+        idToken: token.id_token,
+        userId: token.user_id,
+      })
+    );
+  } catch (error) {
+    const err = error as Error;
+    console.error("error:", err.message);
+    res.status(400).json({ error: "Refresh token is invalid" });
   }
 };
