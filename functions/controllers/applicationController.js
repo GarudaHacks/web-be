@@ -152,11 +152,17 @@ async function validateApplicationResponse(req) {
       case "string":
         fieldErrors = validateStringValue(fieldValue, question);
         break;
-      case "datetime":
-        fieldErrors = validateDatetimeValue(fieldValue, question);
+      case "textarea":
+        fieldErrors = validateStringValue(fieldValue, question);
         break;
       case "number":
         fieldErrors = validateNumberValue(fieldValue, question);
+        break;
+      case "datetime":
+        fieldErrors = validateDatetimeValue(fieldValue, question);
+        break;
+      case "dropdown":
+        fieldErrors = validateDropdownValue(fieldValue, question);
         break;
       case "file":
         fieldErrors = await validateFileUploaded(fieldValue, question)
@@ -220,6 +226,28 @@ async function validateFileUploaded(fieldValue, question) {
   return errors;
 }
 
+function validateDropdownValue(fieldValue, question) {
+  const errors = [];
+  // required
+  if (question.validation["required"] === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Missing required field: ${question.id}`,
+    });
+    return errors;
+  }
+
+  // check valid value
+  const options = question.options;
+  if (options && !options.includes(fieldValue)) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Invalid value: ${fieldValue}. Must be one of ${options.join(", ")}`,
+    });
+  }
+  return errors;
+}
+
 function validateDatetimeValue(fieldValue, question) {
   const errors = [];
   // required
@@ -277,6 +305,9 @@ function validateNumberValue(fieldValue, question) {
   return errors;
 }
 
+/**
+ * Validate string value. Also works for textarea.
+ */
 function validateStringValue(fieldValue, question) {
   const errors = [];
   // required
