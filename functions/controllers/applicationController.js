@@ -7,6 +7,7 @@ const AUTH_USER = "ryan";
 
 // upload file
 const USER_UPLOAD_PATH = `users/uploads/`;
+const STORAGE_BASE_LINK = `https://storage.googleapis.com/${bucket.name}/`
 
 
 const APPLICATION_STATES = [
@@ -34,13 +35,7 @@ const APPLICATION_STATES = [
  * This field will be validated accordingly and ignore any other
  * additional fields that is included in the request.
  *
- * ```
- * // Request body example
- * {
- *    state: PROFILE,
- *    firstName: "Don Pollo"
- * }
- * ```
+ * Further example and documentation can be found in `docs/`.
  */
 exports.patchApplication = async (req, res) => {
   let errors = [];
@@ -68,11 +63,51 @@ exports.patchApplication = async (req, res) => {
     }
 
     const state = req.body.state;
-    res.json({ success: true, state });
+
+    const dataToSave = await constructDataToSave(req);
+    console.log("Data to save", dataToSave)
+    await saveData(dataToSave);
+
+    res.json({ success: true, data: dataToSave });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
+async function saveData(dataToSave) {
+  try {
+    const docRef = db.collection('applications').doc(AUTH_USER);
+    const doc = await docRef.get();
+    
+    const data = {
+      ...dataToSave,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (!doc.exists) {
+      data.createdAt = new Date().toISOString();
+    }
+
+    await docRef.set(data, { merge: true });
+  } catch (error) {
+    console.error('Error saving application:', error);
+    throw new Error('Failed to save application');
+  }
+}
+
+async function constructDataToSave(req) {
+  const questions = await findQuestionsByState(req.body.state);
+  const dataToSave = {}
+  for (const question of questions) {
+    const fieldValue = req.body[question.id];
+    if (question.type === "file") {
+      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${AUTH_USER}_${QUESTION_ID}.${req.body[question.id].split('.').pop()}`;
+    } else {
+      dataToSave[question.id] = fieldValue;
+    }
+  }
+  return dataToSave;
+}
 
 function validateApplicationState(req) {
   const errors = [];
@@ -138,7 +173,9 @@ async function validateApplicationResponse(req) {
 /**
  * Validate file upload.
  * Checking is done by matching the originalName in the uploaded metadata
- * if match, we confirm that file is uploaded already
+ * if match, we confirm that file is uploaded already.
+ * 
+ * Further example and documentation can be found in `docs/`.
  */
 async function validateFileUploaded(fieldValue, question) {
   const errors = [];
