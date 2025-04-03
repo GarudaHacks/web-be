@@ -1,5 +1,5 @@
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
+import { admin, auth } from "../config/firebase";
 import { Request, Response, NextFunction } from "express";
 
 // Extend Express Request interface to include the user property.
@@ -36,7 +36,7 @@ export const validateFirebaseIdToken = async (
       "No Firebase ID token was passed. " +
         "Make sure to include an Authorization header with \"Bearer <Firebase ID Token>\" or a \"__session\" cookie."
     );
-    res.status(403).send("Unauthorized");
+    res.status(403).json({ error: "Unauthorized" });
     return;
   }
 
@@ -52,17 +52,17 @@ export const validateFirebaseIdToken = async (
     functions.logger.log("Found \"__session\" cookie");
     idToken = req.cookies.__session;
   } else {
-    res.status(403).send("Unauthorized");
+    res.status(403).json({ error: "Unauthorized" });
     return;
   }
 
   try {
-    const decodedIdToken = await admin.auth().verifyIdToken(idToken);
+    const decodedIdToken = await auth.verifyIdToken(idToken, true);
     functions.logger.log("ID Token correctly decoded", decodedIdToken);
     req.user = decodedIdToken;
     next();
   } catch (error) {
     functions.logger.error("Error while verifying Firebase ID token:", error);
-    res.status(403).send("Unauthorized");
+    res.status(403).json({ error: "Unauthorized" });
   }
 };
