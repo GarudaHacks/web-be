@@ -1,9 +1,66 @@
-### Overview
+# Garuda Hacks 6.0 Web Back-End
 
-An Express API for the Garudahacks admin and portal apps deployed as a Cloud function.
+This repository contains Cloud Functions for Firebase, written in TypeScript.
 
-### Setup
+## Setup
 
-1. To access the firebase project, you will need the service account key (which can be found in the Notion under env). Download as JSON and place in the root path.
-2. To test your function, run `firebase emulators:start`.
-3. To deploy the function, run `firebase deploy --only functions`.
+### Prerequisites
+
+- Node.js 20+
+- Firebase CLI installed (`npm install -g firebase-tools`)
+- A Firebase project set up
+
+### Installation
+
+```sh
+npm install
+```
+
+### Environment Variables
+
+Create a `.env` file and add your environment variables as needed.
+
+## Development
+
+### Lint
+
+```sh
+npm run lint
+```
+
+### Build
+
+```sh
+npm run build
+```
+
+### Watch Mode
+
+```sh
+npm run build:watch
+```
+
+### Serve Locally
+
+```sh
+npm run serve
+```
+
+### Firebase Shell
+
+```sh
+npm run shell
+```
+
+## Deployment
+
+```sh
+npm run deploy
+```
+
+## Logs
+
+```sh
+npm run logs
+```
+
