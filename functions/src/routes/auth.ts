@@ -14,7 +14,7 @@ router.post("/register", (req: Request, res: Response) => register(req, res));
 router.post("/refresh-token", (req: Request, res: Response) =>
   refreshToken(req, res)
 );
-router.get("/logout", validateFirebaseIdToken, (req: Request, res: Response) =>
+router.post("/logout", validateFirebaseIdToken, (req: Request, res: Response) =>
   logout(req, res)
 );
 
