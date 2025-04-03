@@ -173,3 +173,22 @@ export const refreshToken = async (
     res.status(400).json({ error: "Refresh token is invalid" });
   }
 };
+
+export const logout = async (req: Request, res: Response): Promise<void> => {
+  if (!req.user) {
+    res.status(400).json({ error: "User not authenticated" });
+    return;
+  }
+
+  try {
+    await auth.revokeRefreshTokens(req.user.uid);
+
+    res.status(200).json({
+      message: "Logout successful",
+    });
+  } catch (error) {
+    const err = error as Error;
+    console.error("error:", err.message);
+    res.status(500).json({ error: "Logout failed" });
+  }
+};
