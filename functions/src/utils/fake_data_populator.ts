@@ -1,4 +1,5 @@
 import { firestore } from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
 import { faker } from "@faker-js/faker";
 
 /**
@@ -50,7 +51,6 @@ export class FakeDataPopulator {
 
     for (let i = 0; i < 10; i++) {
       const user = {
-        id: faker.string.uuid(),
         email: faker.internet.email(),
         first_name: faker.person.fullName(),
         last_name: faker.person.lastName(),
@@ -60,11 +60,12 @@ export class FakeDataPopulator {
         grade: faker.number.int({ min: 9, max: 12 }),
         year: faker.date.future().getFullYear(),
         gender_identity: "Man",
-        status: "Accepted",
+        status: "not applicable",
         portfolio: faker.internet.url(),
         github: faker.internet.url(),
         linkedin: faker.internet.url(),
         admin: false,
+        created_at: FieldValue.serverTimestamp(),
       };
 
       await this.createUserDocument(user);
