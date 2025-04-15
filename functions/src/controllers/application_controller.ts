@@ -684,7 +684,7 @@ export const getApplicationQuestion = async (req: Request, res: Response): Promi
     const question = await findQuestionById(questionId)
 
     if (!question) {
-      res.status(400).json({
+      res.status(404).json({
         error: "Not found",
         details: [
           {
@@ -701,6 +701,54 @@ export const getApplicationQuestion = async (req: Request, res: Response): Promi
       data: question
     })
 
+  } catch (error) {
+    const e = error as Error;
+    res.status(500).json({error: e.message});
+  }
+}
+
+export const getApplicationStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const UID = await getUidFromToken(req)
+    if (!UID) {
+      res.status(400).json({
+        error: "Invalid authentication token",
+      });
+      return;
+    }
+
+    const docRef = await db.collection("users").doc(UID).get();
+    if (!docRef.exists) {
+      res.status(404).json({
+        error: "Not found",
+        details: [
+          {
+            field_id: `${UID}`,
+            message: `Cannot find such application`
+          }
+        ]
+      });
+    }
+
+    const data = docRef.data();
+
+    if (!data) {
+      res.status(404).json({
+        error: "Not found",
+        details: [
+          {
+            field_id: `${UID}`,
+            message: `Application status field is missing`,
+          }
+        ]
+      })
+      return
+    }
+
+    res.status(200).json({
+      status: 200,
+      data: data.status
+    })
   } catch (error) {
     const e = error as Error;
     res.status(500).json({error: e.message});
