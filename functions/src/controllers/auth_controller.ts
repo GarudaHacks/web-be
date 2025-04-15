@@ -79,6 +79,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
   try {
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
+    console.log(isEmulator)
 
     const user = await auth.createUser({
       displayName: name,
