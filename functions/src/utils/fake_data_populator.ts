@@ -146,7 +146,7 @@ export class FakeDataPopulator {
       type: QUESTION_TYPE.FILE,
       validation: {
         required: true,
-        allowedTypes: "image/*",
+        allowedTypes: "image/jpg,image/jpeg,image/png",
         maxSize: 5
       }
     }

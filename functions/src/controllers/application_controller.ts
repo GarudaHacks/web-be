@@ -9,21 +9,13 @@ import {
   Question,
   QUESTION_TYPE, StringValidation
 } from "../types/application_types";
+import {getUidFromToken} from "../utils/jwt";
 
 const bucket = admin.storage().bucket();
-
-const AUTH_USER_UID = "0dwuFh4PDfR1v7cjO1oUwvoU7Ey1";
 
 // upload file
 const USER_UPLOAD_PATH = `users/uploads/`;
 const STORAGE_BASE_LINK = `https://storage.googleapis.com/${bucket.name}/`
-
-
-// const APPLICATION_STATES = [
-//   "PROFILE",
-//   "INQUIRY",
-//   "ADDITIONAL_QUESTION",
-// ];
 
 const VALID_STATES = Object.values(APPLICATION_STATES);
 
@@ -48,6 +40,14 @@ const VALID_STATES = Object.values(APPLICATION_STATES);
 export const patchApplication = async (req: Request, res: Response): Promise<void> => {
   let errors = [];
   try {
+    const UID = await getUidFromToken(req)
+    if (!UID) {
+      res.status(400).json({
+        error: "Invalid authentication token",
+      });
+      return;
+    }
+
     if (!req.body || Object.keys(req.body).length === 0) {
       res.status(400).json({
         error: "Expected body",
@@ -64,7 +64,7 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    errors = await validateApplicationResponse(req);
+    errors = await validateApplicationResponse(req, UID);
     if (errors.length > 0) {
       res.status(400).json({
         error: "Validation failed",
@@ -74,8 +74,7 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
     }
 
     const dataToSave = await constructDataToSave(req);
-    console.log("Data to save", dataToSave)
-    await saveData(dataToSave, req.body.state);
+    await saveData(dataToSave, req.body.state, UID);
 
     res.status(200).json({success: true, data: dataToSave});
   } catch (error) {
@@ -85,11 +84,11 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
 };
 
 // eslint-disable-next-line require-jsdoc
-async function saveData(dataToSave: Record<string, string>, state: APPLICATION_STATES) {
+async function saveData(dataToSave: Record<string, string>, state: APPLICATION_STATES, uid: string) {
   try {
     // if currently in PROFILE state, then upsert data to `users` collection.
     if (state === APPLICATION_STATES.PROFILE) {
-      const userRef = db.collection("users").doc(AUTH_USER_UID);
+      const userRef = db.collection("users").doc(uid);
       const userDoc = await userRef.get();
 
       const data: Record<string, string>= {
@@ -106,7 +105,7 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
 
     // upsert other data in `application` section.
     else {
-      const docRef = db.collection("applications").doc(AUTH_USER_UID);
+      const docRef = db.collection("applications").doc(uid);
       const doc = await docRef.get();
 
       const data: Record<string, string> = {
@@ -131,13 +130,15 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
  * This method change file name into a proper firebase storage link format.
  */
 async function constructDataToSave(req: Request): Promise<Record<string, string>> {
+  const UID = await getUidFromToken(req)
+
   const questions: Question[] = await findQuestionsByState(req.body.state);
   const dataToSave: Record<string, string> = {};
   for (const question of questions) {
     if (question.id === undefined || question.id === null) continue;
     const fieldValue = req.body[question.id];
     if (question.type === QUESTION_TYPE.FILE) {
-      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${AUTH_USER_UID}_${QUESTION_ID}.${req.body[question.id].split(".").pop()}`;
+      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${QUESTION_ID}.${req.body[question.id].split(".").pop()}`;
     } else {
       dataToSave[question.id] = fieldValue;
     }
@@ -175,7 +176,7 @@ async function findQuestionsByState(state: APPLICATION_STATES): Promise<Question
 }
 
 // eslint-disable-next-line require-jsdoc
-async function validateApplicationResponse(req: Request) {
+async function validateApplicationResponse(req: Request, uid: string) {
   const errors = [];
   const state = req.body.state;
   const questions = await findQuestionsByState(state);
@@ -213,7 +214,7 @@ async function validateApplicationResponse(req: Request) {
       fieldErrors = validateDropdownValue(fieldValue, question);
       break;
     case QUESTION_TYPE.FILE:
-      fieldErrors = await validateFileUploaded(fieldValue, question)
+      fieldErrors = await validateFileUploaded(fieldValue, question, uid)
       break;
     default:
       fieldErrors = [`Unsupported type for field ${question.id}: ${typeof fieldValue}`];
@@ -229,7 +230,7 @@ async function validateApplicationResponse(req: Request) {
  * Checking is done by matching the originalName in the uploaded metadata
  * if match, we confirm that file is uploaded already.
  */
-async function validateFileUploaded(fieldValue: string | any, question: Question) {
+async function validateFileUploaded(fieldValue: string | any, question: Question, uid: string) {
   const errors = [];
 
   const validation = question.validation as FileValidation;
@@ -245,7 +246,7 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
 
   try {
     // check in firebase storage
-    const fileName = `${AUTH_USER_UID}_${QUESTION_ID}.${fieldValue.split(".").pop()}`;
+    const fileName = `${uid}_${QUESTION_ID}.${fieldValue.split(".").pop()}`;
     const fullFilename = `${USER_UPLOAD_PATH}${fileName}`
     const fileUpload = bucket.file(fullFilename);
 
@@ -375,8 +376,6 @@ function validateStringValue(fieldValue: string | any, question: Question) {
 
   const validation = question.validation as StringValidation;
 
-  console.log(validation.required === true, fieldValue === undefined, fieldValue === "", fieldValue === null)
-
   // required
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
@@ -429,6 +428,14 @@ const QUESTION_ID = "file"
 export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<void> => {
   if (!req.headers["content-type"]) {
     res.status(400).json({error: "Missing content-type header"});
+    return;
+  }
+
+  const UID = await getUidFromToken(req)
+  if (!UID) {
+    res.status(400).json({
+      error: "Invalid authentication token",
+    });
     return;
   }
 
@@ -556,7 +563,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
     };
 
     // upload file to firebase
-    const fileName = `${USER_UPLOAD_PATH}${AUTH_USER_UID}_${QUESTION_ID}.${safeFileData.originalname.split(".").pop()}`;
+    const fileName = `${USER_UPLOAD_PATH}${UID}_${QUESTION_ID}.${safeFileData.originalname.split(".").pop()}`;
     const fileUpload = bucket.file(fileName);
 
     // check if file exists and delete it
@@ -569,7 +576,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
       metadata: {
         contentType: safeFileData.mimetype,
         metadata: {
-          uploadedBy: AUTH_USER_UID,
+          uploadedBy: UID,
           questionId: QUESTION_ID,
           uploadedAt: new Date().toISOString(),
           originalName: safeFileData.originalname,
