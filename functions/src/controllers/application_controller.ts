@@ -453,8 +453,6 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
   }
 
   const question: Question = <Question> (await findQuestionById(questionId))!;
-  const validation = question.validation as FileValidation;
-
   if (!question) {
     res.status(400)
       .json({
@@ -468,6 +466,8 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
       });
     return;
   }
+
+  const validation = question.validation as FileValidation;
 
   const MAX_FILE_SIZE = validation.maxSize || 1; // size constraint, default to 1MB
   const busboy = Busboy({
@@ -620,5 +620,89 @@ async function findQuestionById(questionId: string) {
   } catch (error) {
     console.error("Error fetching question:", error);
     return null;
+  }
+}
+
+export const getApplicationQuestions = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const state: string | undefined = req.query.state?.toString();
+    if (!state) {
+      res.status(400).json({
+        error: "Bad request",
+        details: [
+          {
+            field_id: `state`,
+            message: `Missing required param: state`,
+          }
+        ]
+      });
+      return;
+    }
+
+    if (!VALID_STATES.includes(state as APPLICATION_STATES)) {
+      res.status(400).json({
+        error: "Bad request",
+        details: [
+          {
+            field_id: "state",
+            message: `Invalid state value: ${state}. Must be one of ${VALID_STATES.join(", ")}`,
+          },
+        ],
+      });
+      return;
+    }
+
+    const questions = await findQuestionsByState(state as APPLICATION_STATES)
+
+    res.status(200).json({
+      status: 200,
+      data: questions
+    })
+
+  } catch (error) {
+    const e = error as Error;
+    res.status(500).json({error: e.message});
+  }
+}
+
+export const getApplicationQuestion = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const questionId: string | undefined = req.query.questionId?.toString();
+    if (!questionId) {
+      res.status(400).json({
+        error: "Bad request",
+        details: [
+          {
+            field_id: `questionId`,
+            message: `Missing required param: questionId`,
+          }
+        ]
+      });
+      return;
+    }
+
+    const question = await findQuestionById(questionId)
+
+    if (!question) {
+      res.status(400).json({
+        error: "Not found",
+        details: [
+          {
+            field_id: `${questionId}`,
+            message: `Cannot find such question`,
+          }
+        ]
+      });
+      return;
+    }
+
+    res.status(200).json({
+      status: 200,
+      data: question
+    })
+
+  } catch (error) {
+    const e = error as Error;
+    res.status(500).json({error: e.message});
   }
 }
