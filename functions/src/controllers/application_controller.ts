@@ -138,7 +138,7 @@ async function constructDataToSave(req: Request): Promise<Record<string, string>
     if (question.id === undefined || question.id === null) continue;
     const fieldValue = req.body[question.id];
     if (question.type === QUESTION_TYPE.FILE) {
-      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${QUESTION_ID}.${req.body[question.id].split(".").pop()}`;
+      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${question.id}.${req.body[question.id].split(".").pop()}`;
     } else {
       dataToSave[question.id] = fieldValue;
     }
@@ -246,7 +246,7 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
 
   try {
     // check in firebase storage
-    const fileName = `${uid}_${QUESTION_ID}.${fieldValue.split(".").pop()}`;
+    const fileName = `${uid}_${question.id}.${fieldValue.split(".").pop()}`;
     const fullFilename = `${USER_UPLOAD_PATH}${fileName}`
     const fileUpload = bucket.file(fullFilename);
 
@@ -412,14 +412,13 @@ function validateStringValue(fieldValue: string | any, question: Question) {
   return errors;
 }
 
-
-const QUESTION_ID = "file"
-
 /**
  * Upload file to firebase storage. Require authentication and question id to be passed.
  * This endpoint intended to be called immediately in form after choosing a file.
  * If the question id is not found or mismatch file type, throw error. Also handle
  * file size constraint throwing `413` error.
+ *
+ * Filename stored as `<uid>_<questionId>.<fileFormat>`.
  *
  * Param:
  * - `file`: file to be uploaded
@@ -563,7 +562,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
     };
 
     // upload file to firebase
-    const fileName = `${USER_UPLOAD_PATH}${UID}_${QUESTION_ID}.${safeFileData.originalname.split(".").pop()}`;
+    const fileName = `${USER_UPLOAD_PATH}${UID}_${question.id}.${safeFileData.originalname.split(".").pop()}`;
     const fileUpload = bucket.file(fileName);
 
     // check if file exists and delete it
@@ -577,7 +576,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
         contentType: safeFileData.mimetype,
         metadata: {
           uploadedBy: UID,
-          questionId: QUESTION_ID,
+          questionId: question.id,
           uploadedAt: new Date().toISOString(),
           originalName: safeFileData.originalname,
         }
