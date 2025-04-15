@@ -1,3 +1,5 @@
+import {Request} from "express";
+
 /**
  * State for part to show in the web UI of GH Portal.
  */
@@ -10,7 +12,7 @@ export enum APPLICATION_STATES {
 }
 
 export enum QUESTION_TYPE {
-  NUMBER  = "number",
+  NUMBER = "number",
   STRING = "string",
   TEXTAREA = "textarea",
   DATE = "datetime",
@@ -63,4 +65,21 @@ export interface Question {
   validation: ValidationType;
 
   options?: string[]; // for dropdown only
+}
+
+export interface FileInfo {
+  filename: string;
+  encoding: string;
+  mimeType: string;
+}
+
+export interface FileData {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+  fieldname: string;
+}
+
+export interface ExtendedRequest extends Request {
+  rawBody?: Buffer;
 }

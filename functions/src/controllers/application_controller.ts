@@ -2,7 +2,13 @@ import {Request, Response} from "express";
 import {admin, db} from "../config/firebase";
 import validator from "validator";
 import Busboy from "busboy";
-import {APPLICATION_STATES, Question, QUESTION_TYPE} from "../types/application_types";
+import {
+  APPLICATION_STATES, DatetimeValidation,
+  DropdownValidation, ExtendedRequest, FileData, FileInfo,
+  FileValidation, NumberValidation,
+  Question,
+  QUESTION_TYPE, StringValidation
+} from "../types/application_types";
 
 const bucket = admin.storage().bucket();
 
@@ -88,7 +94,7 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
       const userRef = db.collection("users").doc(AUTH_USER_UID);
       const userDoc = await userRef.get();
 
-      const data = {
+      const data: Record<string, string>= {
         ...dataToSave,
         updatedAt: new Date().toISOString(),
       };
@@ -105,7 +111,7 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
       const docRef = db.collection("applications").doc(AUTH_USER_UID);
       const doc = await docRef.get();
 
-      const data = {
+      const data: Record<string, string> = {
         ...dataToSave,
         updatedAt: new Date().toISOString(),
       };
@@ -215,8 +221,11 @@ async function validateApplicationResponse(req: Request) {
  */
 async function validateFileUploaded(fieldValue: string | any, question: Question) {
   const errors = [];
+
+  const validation = question.validation[question.type] as FileValidation;
+
   // required
-  if (question.validation["required"] === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
       message: `Missing required field: ${question.id}`,
@@ -226,7 +235,7 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
 
   try {
     // check in firebase storage
-    const fileName = `${AUTH_USER_UID}_${QUESTION_ID}.${fieldValue.split('.').pop()}`;
+    const fileName = `${AUTH_USER_UID}_${QUESTION_ID}.${fieldValue.split(".").pop()}`;
     const fullFilename = `${USER_UPLOAD_PATH}${fileName}`
     const fileUpload = bucket.file(fullFilename);
 
@@ -260,8 +269,11 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
 // eslint-disable-next-line require-jsdoc
 function validateDropdownValue(fieldValue: string | any, question: Question) {
   const errors = [];
+
+  const validation = question.validation[question.type] as DropdownValidation;
+
   // required
-  if (question.validation["required"] === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
       message: `Missing required field: ${question.id}`,
@@ -283,8 +295,11 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
 // eslint-disable-next-line require-jsdoc
 function validateDatetimeValue(fieldValue: string, question: Question) {
   const errors = [];
+
+  const validation = question.validation[question.type] as DatetimeValidation;
+
   // required
-  if (question.validation["required"] === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
       message: `Missing required field: ${question.id}`,
@@ -305,8 +320,11 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
 // eslint-disable-next-line require-jsdoc
 function validateNumberValue(fieldValue: number | any, question: Question) {
   const errors = [];
+
+  const validation = question.validation[question.type] as NumberValidation;
+
   // required
-  if (question.validation["required"] === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
       message: `Missing required field: ${question.id}`,
@@ -324,16 +342,16 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   }
 
   // check value
-  if (question.validation.minValue &&
-    fieldValue < question.validation.minValue) {
+  if (validation.minValue &&
+    fieldValue < validation.minValue) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Number value must be more than equals ${question.validation.minValue}: ${fieldValue}`,
+      message: `Number value must be more than equals ${validation.minValue}: ${fieldValue}`,
     });
-  } else if (question.validation.maxValue && fieldValue > question.validation.maxValue) {
+  } else if (validation.maxValue && fieldValue > validation.maxValue) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Number value must be less than equals ${question.validation.maxValue}: ${fieldValue}`,
+      message: `Number value must be less than equals ${validation.maxValue}: ${fieldValue}`,
     });
   }
   return errors;
@@ -344,8 +362,11 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
  */
 function validateStringValue(fieldValue: string | any, question: Question) {
   const errors = [];
+
+  const validation = question.validation[question.type] as StringValidation;
+
   // required
-  if (question.validation["required"] === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
       message: `Missing required field: ${question.id}`,
@@ -363,16 +384,16 @@ function validateStringValue(fieldValue: string | any, question: Question) {
   }
 
   // check length
-  if (question.validation.minLength &&
-    fieldValue.length < question.validation.minLength) {
+  if (validation.minLength &&
+    fieldValue.length < validation.minLength) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be at least ${question.validation.minLength} character(s): ${fieldValue}`,
+      message: `Must be at least ${validation.minLength} character(s): ${fieldValue}`,
     });
-  } else if (question.validation.maxLength && fieldValue.length > question.validation.maxLength) {
+  } else if (validation.maxLength && fieldValue.length > validation.maxLength) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be less than ${question.validation.maxLength} character(s): ${fieldValue}`,
+      message: `Must be less than ${validation.maxLength} character(s): ${fieldValue}`,
     });
   }
   // other string validation if needed
@@ -393,13 +414,13 @@ const QUESTION_ID = "file"
  * - `file`: file to be uploaded
  * - `questionId`: question id to be linked to the file
  */
-export const uploadFile = async (req: Request, res: Response) : Promise<void> => {
+export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<void> => {
   if (!req.headers["content-type"]) {
     res.status(400).json({error: "Missing content-type header"});
     return;
   }
 
-  const questionId : string | undefined = req.query.questionId;
+  const questionId : string | undefined = req.query.questionId?.toString();
   if (!questionId) {
     res.status(400).json({
       error: "Validation failed",
@@ -413,7 +434,9 @@ export const uploadFile = async (req: Request, res: Response) : Promise<void> =>
     return;
   }
 
-  const question : null | { id: string } = await findQuestionById(questionId);
+  const question: Question = <Question> (await findQuestionById(questionId))!;
+  const validation = question.validation[question.type] as FileValidation;
+
   if (!question) {
     res.status(400)
       .json({
@@ -428,7 +451,7 @@ export const uploadFile = async (req: Request, res: Response) : Promise<void> =>
     return;
   }
 
-  const MAX_FILE_SIZE = question.validation.maxSize || 1; // size constraint, default to 1MB
+  const MAX_FILE_SIZE = validation.maxSize || 1; // size constraint, default to 1MB
   const busboy = Busboy({
     headers: req.headers,
     limits: {
@@ -436,36 +459,37 @@ export const uploadFile = async (req: Request, res: Response) : Promise<void> =>
     }
   });
 
-  let fileData = null;
+  let fileData : FileData | null = null;
   let fileSizeExceeded = false;
 
   try {
     await new Promise((resolve, reject) => {
       busboy.once("close", resolve)
         .once("error", reject)
-        .on("file", (fieldname, file, info) => {
-          const {filename, encoding, mimeType} = info;
+        .on("file", (fieldname: string, file: NodeJS.ReadableStream, info: FileInfo) => {
+          // const {filename, encoding, mimeType} = info;
+          const {filename, mimeType} = info;
 
-          if (!question.validation.allowedTypes || !question.validation.allowedTypes.includes(mimeType)) {
+          if (!validation.allowedTypes || !validation.allowedTypes.includes(mimeType)) {
             file.resume(); // discard the file
             return;
           }
 
-          const chunks = [];
-          file.on("data", (chunk) => {
+          const chunks: Buffer[] = [];
+          file.on("data", (chunk: Buffer) => {
             if (!fileSizeExceeded) { // only collect chunks if size limit not exceeded
               chunks.push(chunk);
             }
           });
 
           // handle file size limit
-          file.on("limit", function () {
+          file.on("limit", () => {
             fileSizeExceeded = true;
             res.writeHead(413, {"Connection": "close", "Content-Type": "application/json"});
             res.end(JSON.stringify({
               error: "File too large",
               details: [{
-                field_id: req.questionId,
+                field_id: questionId,
                 message: `File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`
               }]
             }));
@@ -473,12 +497,13 @@ export const uploadFile = async (req: Request, res: Response) : Promise<void> =>
 
           file.on("end", () => {
             if (!fileSizeExceeded) {
-              fileData = {
+              const newfileData : FileData = {
                 buffer: Buffer.concat(chunks),
                 originalname: filename,
                 mimetype: mimeType,
                 fieldname: fieldname
               };
+              fileData = newfileData;
             }
           });
         });
@@ -511,8 +536,15 @@ export const uploadFile = async (req: Request, res: Response) : Promise<void> =>
       return
     }
 
+    const safeFileData = fileData as {
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+      fieldname: string;
+    };
+
     // upload file to firebase
-    const fileName = `${USER_UPLOAD_PATH}${AUTH_USER_UID}_${QUESTION_ID}.${fileData.originalname.split('.').pop()}`;
+    const fileName = `${USER_UPLOAD_PATH}${AUTH_USER_UID}_${QUESTION_ID}.${safeFileData.originalname.split(".").pop()}`;
     const fileUpload = bucket.file(fileName);
 
     // check if file exists and delete it
@@ -523,12 +555,12 @@ export const uploadFile = async (req: Request, res: Response) : Promise<void> =>
 
     const stream = fileUpload.createWriteStream({
       metadata: {
-        contentType: fileData.mimetype,
+        contentType: safeFileData.mimetype,
         metadata: {
           uploadedBy: AUTH_USER_UID,
           questionId: QUESTION_ID,
           uploadedAt: new Date().toISOString(),
-          originalName: fileData.originalname,
+          originalName: safeFileData.originalname,
         }
       },
     });
@@ -546,7 +578,7 @@ export const uploadFile = async (req: Request, res: Response) : Promise<void> =>
       });
     });
 
-    stream.end(fileData.buffer);
+    stream.end(safeFileData.buffer);
 
     const publicUrl = await uploadPromise;
     res.status(200).json({message: "File uploaded successfully", url: publicUrl});
