@@ -1,8 +1,8 @@
-import express, {Router} from "express";
+import express from "express";
 import {patchApplication, uploadFile} from "../controllers/application_controller";
 import {validateFirebaseIdToken} from "../middlewares/auth_middleware";
 
-const router: Router = express.Router();
+const router = express.Router();
 
 router.use(validateFirebaseIdToken)
 

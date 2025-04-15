@@ -6,6 +6,7 @@ dotenv.config();
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+  storageBucket: "garuda-hacks-6-0.firebasestorage.app",
 });
 
 const db = admin.firestore();

@@ -4,11 +4,9 @@ import {Request} from "express";
  * State for part to show in the web UI of GH Portal.
  */
 export enum APPLICATION_STATES {
-  INTRO,
-  PROFILE,
-  INQUIRY,
-  ADDITIONAL_QUESTION,
-  SUBMITTED,
+  PROFILE = "PROFILE",
+  INQUIRY = "INQUIRY",
+  ADDITIONAL_QUESTION = "ADDITIONAL_QUESTION",
 }
 
 export enum QUESTION_TYPE {
@@ -47,7 +45,7 @@ export interface FileValidation {
   maxSize: number; // in MB
 }
 
-export type ValidationType = {
+export type ValidationTypeMap = {
   [QUESTION_TYPE.STRING]: StringValidation;
   [QUESTION_TYPE.TEXTAREA]: StringValidation; // textarea use string validation
   [QUESTION_TYPE.NUMBER]: NumberValidation;
@@ -57,12 +55,12 @@ export type ValidationType = {
 };
 
 export interface Question {
-  id: string;
+  id?: string;
   order: number;
   state: APPLICATION_STATES;
   text: string;
   type: QUESTION_TYPE;
-  validation: ValidationType;
+  validation: ValidationTypeMap[Question["type"]];
 
   options?: string[]; // for dropdown only
 }

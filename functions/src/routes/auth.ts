@@ -6,8 +6,11 @@ import {
   logout,
 } from "../controllers/auth_controller";
 import { validateFirebaseIdToken } from "../middlewares/auth_middleware";
+import {convertRequestToCamelCase} from "../utils/camel_case";
 
 const router = express.Router();
+
+router.use(convertRequestToCamelCase);
 
 router.post("/login", (req: Request, res: Response) => login(req, res));
 router.post("/register", (req: Request, res: Response) => register(req, res));

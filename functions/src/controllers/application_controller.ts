@@ -44,8 +44,6 @@ const VALID_STATES = Object.values(APPLICATION_STATES);
  * `lastName` in the request (from `questions` collection in DB).
  * This field will be validated accordingly and ignore any other
  * additional fields that is included in the request.
- *
- * Further example and documentation can be found in `docs/`.
  */
 export const patchApplication = async (req: Request, res: Response): Promise<void> => {
   let errors = [];
@@ -136,6 +134,7 @@ async function constructDataToSave(req: Request): Promise<Record<string, string>
   const questions: Question[] = await findQuestionsByState(req.body.state);
   const dataToSave: Record<string, string> = {};
   for (const question of questions) {
+    if (question.id === undefined || question.id === null) continue;
     const fieldValue = req.body[question.id];
     if (question.type === QUESTION_TYPE.FILE) {
       dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${AUTH_USER_UID}_${QUESTION_ID}.${req.body[question.id].split(".").pop()}`;
@@ -180,7 +179,16 @@ async function validateApplicationResponse(req: Request) {
   const errors = [];
   const state = req.body.state;
   const questions = await findQuestionsByState(state);
+
   for (const question of questions) {
+    if (question.id === undefined || question.id === null) {
+      errors.push({
+        field_id: `id`,
+        message: `Missing required field on question: id`,
+      })
+      continue;
+    };
+
     const fieldValue = req.body[question.id];
 
     if (fieldValue === undefined && fieldValue === "") {
@@ -190,6 +198,8 @@ async function validateApplicationResponse(req: Request) {
     let fieldErrors;
     switch (question.type) {
     case QUESTION_TYPE.STRING:
+      fieldErrors = validateStringValue(fieldValue, question);
+      break;
     case QUESTION_TYPE.TEXTAREA:
       fieldErrors = validateStringValue(fieldValue, question);
       break;
@@ -222,13 +232,13 @@ async function validateApplicationResponse(req: Request) {
 async function validateFileUploaded(fieldValue: string | any, question: Question) {
   const errors = [];
 
-  const validation = question.validation[question.type] as FileValidation;
+  const validation = question.validation as FileValidation;
 
   // required
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.id}`,
+      message: `Missing required field: ${question.text}`,
     });
     return errors;
   }
@@ -270,13 +280,13 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
 function validateDropdownValue(fieldValue: string | any, question: Question) {
   const errors = [];
 
-  const validation = question.validation[question.type] as DropdownValidation;
+  const validation = question.validation as DropdownValidation;
 
   // required
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.id}`,
+      message: `Missing required field: ${question.text}`,
     });
     return errors;
   }
@@ -296,13 +306,13 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
 function validateDatetimeValue(fieldValue: string, question: Question) {
   const errors = [];
 
-  const validation = question.validation[question.type] as DatetimeValidation;
+  const validation = question.validation as DatetimeValidation;
 
   // required
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.id}`,
+      message: `Missing required field: ${question.text}`,
     });
     return errors;
   }
@@ -321,13 +331,13 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
 function validateNumberValue(fieldValue: number | any, question: Question) {
   const errors = [];
 
-  const validation = question.validation[question.type] as NumberValidation;
+  const validation = question.validation as NumberValidation;
 
   // required
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.id}`,
+      message: `Missing required field: ${question.text}`,
     });
     return errors;
   }
@@ -363,13 +373,15 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
 function validateStringValue(fieldValue: string | any, question: Question) {
   const errors = [];
 
-  const validation = question.validation[question.type] as StringValidation;
+  const validation = question.validation as StringValidation;
+
+  console.log(validation.required === true, fieldValue === undefined, fieldValue === "", fieldValue === null)
 
   // required
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.id}`,
+      message: `Missing required field: ${question.text}`,
     });
     return errors;
   }
@@ -435,7 +447,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
   }
 
   const question: Question = <Question> (await findQuestionById(questionId))!;
-  const validation = question.validation[question.type] as FileValidation;
+  const validation = question.validation as FileValidation;
 
   if (!question) {
     res.status(400)
