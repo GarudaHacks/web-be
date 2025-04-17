@@ -1,6 +1,7 @@
 import express, { Request, Response, NextFunction } from "express";
 import cors, {CorsOptions} from "cors";
 import routes from "./routes";
+import cookieParser from "cookie-parser";
 
 const app = express();
 
@@ -18,6 +19,7 @@ const corsOptions: CorsOptions = {
 // Middleware
 app.options("*", cors(corsOptions)); // preflight
 app.use(cors(corsOptions));
+app.use(cookieParser())
 app.use(express.json());
 
 app.use((req: Request, res: Response, next: NextFunction) => {

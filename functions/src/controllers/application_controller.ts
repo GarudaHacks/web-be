@@ -3,11 +3,17 @@ import {admin, db} from "../config/firebase";
 import validator from "validator";
 import Busboy from "busboy";
 import {
-  APPLICATION_STATES, DatetimeValidation,
-  DropdownValidation, ExtendedRequest, FileData, FileInfo,
-  FileValidation, NumberValidation,
+  APPLICATION_STATES,
+  DatetimeValidation,
+  DropdownValidation,
+  ExtendedRequest,
+  FileData,
+  FileInfo,
+  FileValidation,
+  NumberValidation,
   Question,
-  QUESTION_TYPE, StringValidation
+  QUESTION_TYPE,
+  StringValidation
 } from "../types/application_types";
 import {getUidFromToken} from "../utils/jwt";
 
@@ -91,7 +97,7 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
       const userRef = db.collection("users").doc(uid);
       const userDoc = await userRef.get();
 
-      const data: Record<string, string>= {
+      const data: Record<string, string> = {
         ...dataToSave,
         updatedAt: new Date().toISOString(),
       };
@@ -188,7 +194,8 @@ async function validateApplicationResponse(req: Request, uid: string) {
         message: `Missing required field on question: id`,
       })
       continue;
-    };
+    }
+    ;
 
     const fieldValue = req.body[question.id];
 
@@ -198,26 +205,26 @@ async function validateApplicationResponse(req: Request, uid: string) {
 
     let fieldErrors;
     switch (question.type) {
-    case QUESTION_TYPE.STRING:
-      fieldErrors = validateStringValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.TEXTAREA:
-      fieldErrors = validateStringValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.NUMBER:
-      fieldErrors = validateNumberValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.DATE:
-      fieldErrors = validateDatetimeValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.DROPDOWN:
-      fieldErrors = validateDropdownValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.FILE:
-      fieldErrors = await validateFileUploaded(fieldValue, question, uid)
-      break;
-    default:
-      fieldErrors = [`Unsupported type for field ${question.id}: ${typeof fieldValue}`];
+      case QUESTION_TYPE.STRING:
+        fieldErrors = validateStringValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.TEXTAREA:
+        fieldErrors = validateStringValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.NUMBER:
+        fieldErrors = validateNumberValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.DATE:
+        fieldErrors = validateDatetimeValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.DROPDOWN:
+        fieldErrors = validateDropdownValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.FILE:
+        fieldErrors = await validateFileUploaded(fieldValue, question, uid)
+        break;
+      default:
+        fieldErrors = [`Unsupported type for field ${question.id}: ${typeof fieldValue}`];
     }
 
     errors.push(...fieldErrors);
@@ -424,7 +431,7 @@ function validateStringValue(fieldValue: string | any, question: Question) {
  * - `file`: file to be uploaded
  * - `questionId`: question id to be linked to the file
  */
-export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<void> => {
+export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<void> => {
   if (!req.headers["content-type"]) {
     res.status(400).json({error: "Missing content-type header"});
     return;
@@ -438,7 +445,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
     return;
   }
 
-  const questionId : string | undefined = req.query.questionId?.toString();
+  const questionId: string | undefined = req.query.questionId?.toString();
   if (!questionId) {
     res.status(400).json({
       error: "Validation failed",
@@ -452,7 +459,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
     return;
   }
 
-  const question: Question = <Question> (await findQuestionById(questionId))!;
+  const question: Question = <Question>(await findQuestionById(questionId))!;
   if (!question) {
     res.status(400)
       .json({
@@ -477,7 +484,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
     }
   });
 
-  let fileData : FileData | null = null;
+  let fileData: FileData | null = null;
   let fileSizeExceeded = false;
 
   try {
@@ -515,7 +522,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response) : Promise<
 
           file.on("end", () => {
             if (!fileSizeExceeded) {
-              const newfileData : FileData = {
+              const newfileData: FileData = {
                 buffer: Buffer.concat(chunks),
                 originalname: filename,
                 mimetype: mimeType,
@@ -721,12 +728,7 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
     if (!docRef.exists) {
       res.status(404).json({
         error: "Not found",
-        details: [
-          {
-            field_id: `${UID}`,
-            message: `Cannot find such application`
-          }
-        ]
+        message: `Cannot find this user`
       });
     }
 
@@ -735,12 +737,7 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
     if (!data) {
       res.status(404).json({
         error: "Not found",
-        details: [
-          {
-            field_id: `${UID}`,
-            message: `Application status field is missing`,
-          }
-        ]
+        message: `Cannot find application status for this user`,
       })
       return
     }

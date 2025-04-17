@@ -1,6 +1,7 @@
 import * as functions from "firebase-functions";
-import { admin, auth } from "../config/firebase";
-import { Request, Response, NextFunction } from "express";
+import {admin, auth} from "../config/firebase";
+import {NextFunction, Request, Response} from "express";
+import {extractSessionFromHeaderOrCookies} from "../utils/jwt";
 
 // Extend Express Request interface to include the user property.
 declare global {
@@ -26,6 +27,10 @@ export const validateFirebaseIdToken = async (
     "Checking if request is authorized with Firebase ID token"
   );
 
+  console.log(req.cookies);
+  console.log(req.cookies.__session);
+  console.log(req.headers.cookie);
+
   // Check for token in Authorization header or __session cookie.
   if (
     (!req.headers.authorization ||
@@ -34,25 +39,15 @@ export const validateFirebaseIdToken = async (
   ) {
     functions.logger.error(
       "No Firebase ID token was passed. " +
-        "Make sure to include an Authorization header with \"Bearer <Firebase ID Token>\" or a \"__session\" cookie."
+      "Make sure to include an Authorization header with \"Bearer <Firebase ID Token>\" or a \"__session\" cookie."
     );
-    res.status(403).json({ error: "Unauthorized" });
+    res.status(403).json({error: "Unauthorized"});
     return;
   }
 
-  let idToken: string;
-  if (
-    req.headers.authorization &&
-    req.headers.authorization.startsWith("Bearer ")
-  ) {
-    functions.logger.log("Found \"Authorization\" header");
-    // Extract the token from the header.
-    idToken = req.headers.authorization.split("Bearer ")[1];
-  } else if (req.cookies) {
-    functions.logger.log("Found \"__session\" cookie");
-    idToken = req.cookies.__session;
-  } else {
-    res.status(403).json({ error: "Unauthorized" });
+  const idToken = extractSessionFromHeaderOrCookies(req);
+  if (!idToken) {
+    res.status(403).json({error: "Unauthorized"});
     return;
   }
 
@@ -63,6 +58,6 @@ export const validateFirebaseIdToken = async (
     next();
   } catch (error) {
     functions.logger.error("Error while verifying Firebase ID token:", error);
-    res.status(403).json({ error: "Unauthorized" });
+    res.status(403).json({error: "Unauthorized"});
   }
 };

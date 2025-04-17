@@ -241,7 +241,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
- * Verify google token. Returns id_token cookie.
+ * Verify google token. Returns __session cookie.
  */
 export const verifyToken = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -257,9 +257,6 @@ export const verifyToken = async (req: Request, res: Response): Promise<void> =>
     const decodedToken = await auth.verifyIdToken(idToken, true)
     const expiresIn = decodedToken.exp;
     const epochNow = new Date().getTime() / 1000;
-    console.log(epochNow)
-
-    functions.logger.log("ID Token correctly decoded", decodedToken);
 
     // set success cookies
     res.cookie("__session", decodedToken, {
