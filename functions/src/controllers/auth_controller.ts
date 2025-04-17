@@ -1,9 +1,10 @@
-import { Request, Response } from "express";
-import { db, auth } from "../config/firebase";
+import {Request, Response} from "express";
+import {db, auth} from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
-import { FieldValue } from "firebase-admin/firestore";
-import { convertResponseToSnakeCase } from "../utils/camel_case";
+import {FieldValue} from "firebase-admin/firestore";
+import {convertResponseToSnakeCase} from "../utils/camel_case";
+import * as functions from "firebase-functions";
 
 const validateEmailAndPassword = (
   email: string,
@@ -11,14 +12,14 @@ const validateEmailAndPassword = (
   res: Response
 ): boolean => {
   if (!validator.isEmail(email)) {
-    res.status(400).json({ error: "Invalid email" });
+    res.status(400).json({error: "Invalid email"});
     return false;
   }
 
-  if (!validator.isLength(password, { min: 6 })) {
+  if (!validator.isLength(password, {min: 6})) {
     res
       .status(400)
-      .json({ error: "Password must be at least 6 characters long" });
+      .json({error: "Password must be at least 6 characters long"});
     return false;
   }
 
@@ -29,7 +30,7 @@ const validateEmailAndPassword = (
  * Logs in user
  */
 export const login = async (req: Request, res: Response): Promise<void> => {
-  const { email, password } = req.body;
+  const {email, password} = req.body;
 
   if (!validateEmailAndPassword(email, password, res)) return;
 
@@ -51,7 +52,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const user = await auth.getUserByEmail(email);
 
     // set cookies
-    res.cookie("id_token", token.idToken, {
+    res.cookie("__session", token.idToken, {
       httpOnly: true,
       maxAge: 60 * 60 * 1000,
       sameSite: "strict",
@@ -78,7 +79,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(400).json({ error: "Invalid email or password" });
+    res.status(400).json({error: "Invalid email or password"});
   }
 };
 
@@ -86,7 +87,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
  * Registers new user
  */
 export const register = async (req: Request, res: Response): Promise<void> => {
-  const { name, email, password } = req.body;
+  const {name, email, password} = req.body;
 
   if (!validateEmailAndPassword(email, password, res)) return;
 
@@ -106,7 +107,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       : `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${process.env.WEB_API_KEY}`;
 
     const token = (
-      await axios.post(url, { token: customToken, returnSecureToken: true })
+      await axios.post(url, {token: customToken, returnSecureToken: true})
     ).data;
 
     await db.collection("users").doc(user.uid).set({
@@ -128,7 +129,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
 
     // set cookies
-    res.cookie("id_token", token.idToken, {
+    res.cookie("__session", token.idToken, {
       httpOnly: true,
       maxAge: 60 * 60 * 1000,
       sameSite: "strict",
@@ -155,7 +156,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(400).json({ error: err.message });
+    res.status(400).json({error: err.message});
   }
 };
 
@@ -163,10 +164,10 @@ export const refreshToken = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const { refreshToken } = req.body;
+  const {refreshToken} = req.body;
 
   if (!refreshToken) {
-    res.status(400).json({ error: "Refresh token is required" });
+    res.status(400).json({error: "Refresh token is required"});
     return;
   }
 
@@ -185,7 +186,7 @@ export const refreshToken = async (
     ).data;
 
     // set cookies
-    res.cookie("id_token", token.id_token, {
+    res.cookie("__session", token.id_token, {
       httpOnly: true,
       maxAge: 60 * 60 * 1000,
       sameSite: "strict",
@@ -204,13 +205,13 @@ export const refreshToken = async (
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(400).json({ error: "Refresh token is invalid" });
+    res.status(400).json({error: "Refresh token is invalid"});
   }
 };
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
   if (!req.user) {
-    res.status(400).json({ error: "User not authenticated" });
+    res.status(400).json({error: "User not authenticated"});
     return;
   }
 
@@ -218,7 +219,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     await auth.revokeRefreshTokens(req.user.uid);
 
     // remove cookies
-    res.clearCookie("id_token", {
+    res.clearCookie("__session", {
       httpOnly: true,
       sameSite: "strict",
       secure: process.env.NODE_ENV === "production"
@@ -235,6 +236,44 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(500).json({ error: "Logout failed" });
+    res.status(500).json({error: "Logout failed"});
   }
 };
+
+/**
+ * Verify google token. Returns id_token cookie.
+ */
+export const verifyToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const idToken = req.body.idToken;
+    if (!idToken) {
+      res.status(400).json({
+        status_code: 400,
+        data: "Bad request"
+      });
+      return;
+    }
+
+    const decodedToken = await auth.verifyIdToken(idToken, true)
+    const expiresIn = decodedToken.exp;
+    const epochNow = new Date().getTime() / 1000;
+    console.log(epochNow)
+
+    functions.logger.log("ID Token correctly decoded", decodedToken);
+
+    // set success cookies
+    res.cookie("__session", decodedToken, {
+      httpOnly: true,
+      maxAge: expiresIn - epochNow,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+    res.status(200).json({
+      status_code: 200,
+      data: true
+    })
+  } catch (e) {
+    functions.logger.error("Error while verifying Firebase ID token:", e);
+    res.status(403).json({error: "Unauthorized"});
+  }
+}
