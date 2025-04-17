@@ -50,6 +50,19 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const user = await auth.getUserByEmail(email);
 
+    // set cookies
+    res.cookie("id_token", token.idToken, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+    res.cookie("refresh_token", token.refreshToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+
     res.status(200).json(
       convertResponseToSnakeCase({
         message: "Login successful",
@@ -114,6 +127,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       created_at: FieldValue.serverTimestamp(),
     });
 
+    // set cookies
+    res.cookie("id_token", token.idToken, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+    res.cookie("refresh_token", token.refreshToken, {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+
     res.status(201).json(
       convertResponseToSnakeCase({
         message: "Registration successful",
@@ -158,6 +184,14 @@ export const refreshToken = async (
       })
     ).data;
 
+    // set cookies
+    res.cookie("id_token", token.id_token, {
+      httpOnly: true,
+      maxAge: 60 * 60 * 1000,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+
     res.status(200).json(
       convertResponseToSnakeCase({
         accessToken: token.id_token,
@@ -182,6 +216,18 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 
   try {
     await auth.revokeRefreshTokens(req.user.uid);
+
+    // remove cookies
+    res.clearCookie("id_token", {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+    res.clearCookie("refresh_token", {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
 
     res.status(200).json({
       message: "Logout successful",

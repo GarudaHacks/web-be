@@ -1,11 +1,23 @@
 import express, { Request, Response, NextFunction } from "express";
-import cors from "cors";
+import cors, {CorsOptions} from "cors";
 import routes from "./routes";
 
 const app = express();
 
+const corsOptions: CorsOptions = {
+  origin: [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://localhost:5173",
+    "https://garudahacks.com",
+    "https://www.garudahacks.com",
+  ],
+  credentials: true,
+  allowedHeaders: ["Content-Type", "Authorization"]
+}
 // Middleware
-app.use(cors());
+app.options("*", cors(corsOptions)); // preflight
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use((req: Request, res: Response, next: NextFunction) => {
