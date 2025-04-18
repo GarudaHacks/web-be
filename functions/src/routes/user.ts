@@ -3,7 +3,7 @@ import {
   createUser,
   getUsers,
   getCurrentUser,
-} from "../controllers/users_controller";
+} from "../controllers/user_controller";
 import { validateFirebaseIdToken } from "../middlewares/auth_middleware";
 
 const router = express.Router();

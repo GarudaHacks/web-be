@@ -4,6 +4,7 @@ import axios from "axios";
 import validator from "validator";
 import { FieldValue } from "firebase-admin/firestore";
 import { convertResponseToSnakeCase } from "../utils/camel_case";
+import { User, formatUser } from "../models/user";
 
 const validateEmailAndPassword = (
   email: string,
@@ -96,23 +97,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       await axios.post(url, { token: customToken, returnSecureToken: true })
     ).data;
 
-    await db.collection("users").doc(user.uid).set({
-      email: user.email,
-      first_name: user.displayName,
-      last_name: null,
-      date_of_birth: null,
-      education: null,
-      school: null,
-      grade: null,
-      year: null,
-      gender_identity: null,
+    const userData: User = formatUser({
+      email: user.email ?? "",
+      firstName: user.displayName ?? "",
       status: "not applicable",
-      portfolio: null,
-      github: null,
-      linkedin: null,
-      admin: false,
-      created_at: FieldValue.serverTimestamp(),
     });
+
+    await db
+      .collection("users")
+      .doc(user.uid)
+      .set({
+        ...userData,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
     res.status(201).json(
       convertResponseToSnakeCase({
