@@ -76,3 +76,26 @@ export const getUsers = async (req: Request, res: Response): Promise<void> => {
     res.status(500).json({ error: (error as Error).message });
   }
 };
+
+export const getCurrentUser = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    res.json({ id: userDoc.id, ...userDoc.data() });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
