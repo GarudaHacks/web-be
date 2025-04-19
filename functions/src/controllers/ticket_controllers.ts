@@ -87,7 +87,13 @@ export const updateTicket = async (
     const { id } = req.params;
     const data = req.body as Partial<Ticket>;
 
-    await db.collection("tickets").doc(id).update(data);
+    const ticketDoc = db.collection("tickets").doc(id);
+    const ticketSnap = await ticketDoc.get();
+    if (!ticketSnap.exists) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    await ticketDoc.update(data);
 
     res.status(200).json({ success: true, message: "Ticket updated" });
   } catch (error) {
@@ -105,7 +111,13 @@ export const deleteTicket = async (
   try {
     const { id } = req.params;
 
-    await db.collection("tickets").doc(id).delete();
+    const ticketDoc = db.collection("tickets").doc(id);
+    const ticketSnap = await ticketDoc.get();
+    if (!ticketSnap.exists) {
+      res.status(404).json({ error: "Ticket not found" });
+      return;
+    }
+    await ticketDoc.delete();
 
     res.status(200).json({ success: true, message: "Ticket deleted" });
   } catch (error) {
