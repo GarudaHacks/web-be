@@ -1,7 +1,9 @@
-import express, { Request, Response, NextFunction } from "express";
+import express, {Request, Response, NextFunction} from "express";
 import cors, {CorsOptions} from "cors";
 import routes from "./routes";
 import cookieParser from "cookie-parser";
+import * as functions from "firebase-functions";
+import csrf from "csurf";
 
 const app = express();
 
@@ -22,8 +24,25 @@ app.use(cors(corsOptions));
 app.use(cookieParser())
 app.use(express.json());
 
+const csrfProtection = csrf({ cookie: true });
+app.use(csrfProtection);
+app.all("*", (req: Request, res: Response, next: NextFunction) => {
+  res.cookie("XSRF-TOKEN", req.csrfToken());
+  next();
+});
+
 app.use((req: Request, res: Response, next: NextFunction) => {
-  console.log(`Incoming request: ${req.method} ${req.path}`);
+  const logData = {
+    method: req.method,
+    path: req.path,
+    headers: req.headers,
+    cookies: req.cookies,
+    body: req.body,
+    authorizationHeader: req.headers.authorization || "Not Present",
+    sessionCookie: req.cookies.__session || "Not Present"
+  };
+  const timestamp = new Date().toISOString();
+  functions.logger.info(`[${timestamp}] Incoming Request Details: ${JSON.stringify(logData, null, 2)}`);
   next();
 });
 

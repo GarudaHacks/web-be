@@ -1,11 +1,13 @@
-import { Request, Response } from "express";
-import { db, auth } from "../config/firebase";
+import {Request, Response} from "express";
+import {db, auth} from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
 import { User, formatUser } from "../models/user";
 import {FieldValue} from "firebase-admin/firestore";
 import {convertResponseToSnakeCase} from "../utils/camel_case";
 import * as functions from "firebase-functions";
+import {FirebaseError} from "firebase-admin";
+import {TypedRequestBody} from "../types/express";
 
 const validateEmailAndPassword = (
   email: string,
@@ -232,42 +234,149 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     const err = error as Error;
-    console.error("error:", err.message);
+    functions.logger.error("Error when trying to logout", err.message);
     res.status(500).json({error: "Logout failed"});
   }
 };
 
 /**
- * Verify google token. Returns __session cookie.
+ * Returns __session and refresh_token cookie. Intended to be used for login using firebase sdk.
  */
-export const verifyToken = async (req: Request, res: Response): Promise<void> => {
+export const sessionLogin = async (req: TypedRequestBody<{
+  idToken: string;
+  refreshToken: string;
+  exp: number;
+  csrfToken?: string;
+}>, res: Response): Promise<void> => {
+  // const csrfToken = req.body.csrfToken || req.headers["csrf-token"];
+
+  const idToken = req.body.idToken;
+  if (!idToken) {
+    functions.logger.error("idToken is not present in the body.")
+    res.status(400).json({
+      status_code: 400,
+      data: "Bad request"
+    });
+    return;
+  }
+
   try {
-    const idToken = req.body.idToken;
-    if (!idToken) {
-      res.status(400).json({
-        status_code: 400,
-        data: "Bad request"
-      });
+    const cookies = await auth.createSessionCookie(idToken, { expiresIn: 60 * 5 * 1000 }); // expires in 5 mins
+
+    res.status(200).json({
+      cookies: cookies
+    })
+  } catch(e) {
+    functions.logger.error("Error when trying to createSessionCookie", e);
+    res.status(500).json({error: e});
+  }
+
+
+
+
+  // let isValidToken = false;
+  // const idToken = req.body.idToken;
+  //
+  // let isValidRefreshToken = false;
+  // const refreshToken = req.body.refreshToken;
+  //
+  // const exp = req.body.exp;
+  //
+  // try {
+
+  //
+  //   const idToken = await auth.verifyIdToken(idToken)
+  //   const epochNow = new Date().getTime() / 1000;
+  //   isValidToken = true;
+  //
+  //
+  // } catch (e) {
+  //   functions.logger.error("Error while verifying Firebase ID token:", e);
+  //   res.status(403).json({error: "Unauthorized"});
+  // }
+  //
+  // try {
+  //   if (!refreshToken) {
+  //     functions.logger.error("refreshToken is not present in the body.")
+  //     res.status(400).json({
+  //       status_code: 400,
+  //     })
+  //   }
+  //
+  //   const decodedToken = await auth.verifyIdToken(idToken)
+  //   const expiresIn = decodedToken.exp;
+  //   const epochNow = new Date().getTime() / 1000;
+  //   isValidToken = true;
+  // } catch (e) {
+  //   functions.logger.error("Error while verifying Refresh Token:", e);
+  //   res.status(403).json({error: "Unauthorized"});
+  // }
+  //
+  // // set success cookies
+  // res.cookie("__session", decodedToken, {
+  //   httpOnly: true,
+  //   maxAge: expiresIn - epochNow,
+  //   sameSite: "strict",
+  //   secure: process.env.NODE_ENV === "production"
+  // });
+  // res.status(200).json({
+  //   status_code: 200,
+  //   data: true
+  // })
+
+
+
+}
+
+/**
+ * Used to invalidate user's token everywhere.
+ * @param req
+ * @param res
+ */
+export const invalidateToken = async (req: Request, res: Response): Promise<void> => {
+  try {
+
+    if (!req.body.uid) {
+      res.status(400).json({error: "Refresh token is required"});
       return;
     }
 
-    const decodedToken = await auth.verifyIdToken(idToken, true)
-    const expiresIn = decodedToken.exp;
-    const epochNow = new Date().getTime() / 1000;
-
-    // set success cookies
-    res.cookie("__session", decodedToken, {
-      httpOnly: true,
-      maxAge: expiresIn - epochNow,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
+    await auth.revokeRefreshTokens(req.body.uid);
     res.status(200).json({
       status_code: 200,
       data: true
     })
-  } catch (e) {
-    functions.logger.error("Error while verifying Firebase ID token:", e);
-    res.status(403).json({error: "Unauthorized"});
+  } catch (error) {
+    const err = error as FirebaseError;
+
+    if (err.code === "auth/user-not-found") {
+      res.status(400).json({
+        status_code: 400,
+        error: "No such user"
+      });
+      return;
+    }
+
+    functions.logger.error("Error when revoking user token:", err.message);
+    res.status(500).json({error: "Internal server error"});
+  }
+}
+
+export const tokenSandbox = async (req: Request, res: Response): Promise<void> => {
+  try {
+    // let idToken = req.body.idToken;
+    // idToken = await auth.verifyIdToken(idToken)
+    // res.status(200).json({
+    //   decoded: idToken,
+    // })
+    let refreshToken = req.body.refreshToken;
+    refreshToken = await auth.verifySessionCookie(refreshToken, true);
+    res.status(200).json({
+      decoded: refreshToken,
+    })
+    return
+  } catch (error) {
+    res.status(500).json({error: error});
+    return
   }
 }
