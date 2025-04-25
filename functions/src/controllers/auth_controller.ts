@@ -1,7 +1,8 @@
-import {Request, Response} from "express";
-import {db, auth} from "../config/firebase";
+import { Request, Response } from "express";
+import { db, auth } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
+import { User, formatUser } from "../models/user";
 import {FieldValue} from "firebase-admin/firestore";
 import {convertResponseToSnakeCase} from "../utils/camel_case";
 import * as functions from "firebase-functions";
@@ -110,23 +111,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       await axios.post(url, {token: customToken, returnSecureToken: true})
     ).data;
 
-    await db.collection("users").doc(user.uid).set({
-      email: user.email,
-      first_name: user.displayName,
-      last_name: null,
-      date_of_birth: null,
-      education: null,
-      school: null,
-      grade: null,
-      year: null,
-      gender_identity: null,
+    const userData: User = formatUser({
+      email: user.email ?? "",
+      firstName: user.displayName ?? "",
       status: "not applicable",
-      portfolio: null,
-      github: null,
-      linkedin: null,
-      admin: false,
-      created_at: FieldValue.serverTimestamp(),
     });
+
+    await db
+      .collection("users")
+      .doc(user.uid)
+      .set({
+        ...userData,
+        createdAt: FieldValue.serverTimestamp(),
+      });
 
     // set cookies
     res.cookie("__session", token.idToken, {
