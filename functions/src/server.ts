@@ -39,10 +39,16 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     path: req.path,
     headers: req.headers,
     cookies: req.cookies,
-    body: req.body,
-    authorizationHeader: req.headers || "Not Present",
-    sessionCookie: req.cookies.__session || "Not Present"
+    authorizationHeader: req.headers.authorization || "Not Present",
+    sessionCookie: req.cookies.__session || "Not Present",
+    body: undefined
   };
+
+  const contentType = req.headers["content-type"] || "";
+  if (!contentType.includes("multipart/form-data")) {
+    logData.body = req.body;
+  }
+
   const timestamp = new Date().toISOString();
   functions.logger.info(`[${timestamp}] Incoming Request Details: ${JSON.stringify(logData, null, 2)}`);
   next();
