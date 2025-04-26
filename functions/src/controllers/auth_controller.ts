@@ -1,13 +1,14 @@
 import {Request, Response} from "express";
-import {db, auth} from "../config/firebase";
+import {auth, db} from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
-import {User, formatUser} from "../models/user";
+import {formatUser, User} from "../models/user";
 import {FieldValue} from "firebase-admin/firestore";
 import {convertResponseToSnakeCase} from "../utils/camel_case";
 import * as functions from "firebase-functions";
 import {FirebaseError} from "firebase-admin";
 import {TypedRequestBody} from "../types/express";
+import {generateCsrfToken} from "../utils/csrf";
 
 const validateEmailAndPassword = (
   email: string,
@@ -68,6 +69,20 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
       // revoke refresh token
       await auth.revokeRefreshTokens(user.uid)
+
+      const csrfToken = generateCsrfToken();
+      // http only cookie
+      res.cookie("CSRF-TOKEN", csrfToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict"
+      });
+      // non http only cookie
+      res.cookie("XSRF-TOKEN", csrfToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict"
+      })
     } catch (e) {
       functions.logger.error("Error when returning session for login", e);
       res.status(500).json({error: "Something went wrong."});
@@ -141,6 +156,20 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         sameSite: "strict",
         secure: process.env.NODE_ENV === "production"
       });
+
+      const csrfToken = generateCsrfToken();
+      // http only cookie
+      res.cookie("CSRF-TOKEN", csrfToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict"
+      });
+      // non http only cookie
+      res.cookie("XSRF-TOKEN", csrfToken, {
+        httpOnly: false,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict"
+      })
     } catch (e) {
       functions.logger.error("Error when returning session for register", e);
       res.status(500).json({error: "Something went wrong."});
@@ -213,21 +242,12 @@ export const refreshToken = async (
 };
 
 export const logout = async (req: Request, res: Response): Promise<void> => {
-  if (!req.user) {
-    res.status(400).json({error: "User not authenticated"});
-    return;
-  }
-
+  const user = req.user!; // from auth middleware
   try {
-    await auth.revokeRefreshTokens(req.user.uid);
+    await auth.revokeRefreshTokens(user.uid);
 
     // remove cookies
     res.clearCookie("__session", {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
-    res.clearCookie("refresh_token", {
       httpOnly: true,
       sameSite: "strict",
       secure: process.env.NODE_ENV === "production"
@@ -239,7 +259,15 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     functions.logger.error("Error when trying to logout", err.message);
-    res.status(500).json({error: "Logout failed"});
+
+    // force remove cookies
+    res.clearCookie("__session", {
+      httpOnly: true,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
+
+    res.status(500).json({error: "Something went wrong."});
   }
 };
 

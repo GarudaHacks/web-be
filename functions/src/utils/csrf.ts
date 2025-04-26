@@ -22,7 +22,7 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
   const csrfHeader = req.header("x-csrf-token");
 
   if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
-    functions.logger.info("CSRF validation rejected as cookie and header does not match.")
+    functions.logger.log("CSRF validation rejected as cookie and header does not match.")
     return res.status(403).json({ error: "CSRF token validation failed" });
   }
 

@@ -35,14 +35,14 @@ export function extractSessionFromHeaderOrCookies(req: Request) {
  * Get refresh token from cookie. Return none otherwise.
  * @param req
  */
-export function extractRefreshTokenFromCookies(req: Request) {
-  let refreshToken;
-  if (req.cookies.refresh_token) {
-    functions.logger.log("Found refresh_token cookie");
-    refreshToken = req.cookies.refresh_token;
-    return refreshToken;
+export function extractSessionCookieFromCookie(req: Request) {
+  let sessionCookie;
+  if (req.cookies.__session) {
+    functions.logger.log("Found __session cookie");
+    sessionCookie = req.cookies.__session;
+    return sessionCookie;
   }
-  functions.logger.warn("Cannot find refresh_token cookie");
+  functions.logger.warn("Cannot find __session cookie");
   return;
 }
 

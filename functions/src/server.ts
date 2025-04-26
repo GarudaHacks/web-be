@@ -25,26 +25,7 @@ app.use(cors(corsOptions));
 app.use(cookieParser())
 app.use(express.json());
 
-// CSRF protection as we use session cookie for authentication.
-app.use((req: Request, res: Response, next: NextFunction) => {
-  const csrfToken = generateCsrfToken();
-
-  // http only cookie
-  res.cookie("CSRF-TOKEN", csrfToken, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
-  });
-
-  // non http only cookie
-  res.cookie("XSRF-TOKEN", csrfToken, {
-    httpOnly: false,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "strict"
-  })
-
-  next()
-})
+// CSRF protection as we use session cookie for authentication
 app.use(csrfProtection)
 
 // Logging

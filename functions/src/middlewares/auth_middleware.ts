@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions";
 import {admin, auth} from "../config/firebase";
 import {NextFunction, Request, Response} from "express";
-import {extractRefreshTokenFromCookies, extractSessionFromHeaderOrCookies} from "../utils/jwt";
+import {extractSessionCookieFromCookie, extractSessionFromHeaderOrCookies} from "../utils/jwt";
 
 // Extend Express Request interface to include the user property.
 declare global {
@@ -63,30 +63,23 @@ export const validateFirebaseIdToken = async (
 };
 
 /**
- * Middleware that validates Firebase Session Cookie (refresh token) passed as a refresh-token cookie or body.
- * The token should be provided as a refresh_token cookie or through body argument refresh_token.
+ * Middleware that validates Firebase Session Cookie passed as __session cookie.
  */
-export const validateFirebaseRefreshToken = async (
+export const validateSessionCookie = async (
   req: Request,
   res: Response,
   next: NextFunction
 ) => {
+
   functions.logger.log(
-    "Checking if request is authorized with Firebase Refresh Token"
+    "Checking if request is authorized with session cookies"
   );
 
-  let refreshToken;
-  if (req.cookies && req.cookies.refresh_token) {
-    refreshToken = extractRefreshTokenFromCookies(req);
-  } else if (req.body.refresh_token) {
-    refreshToken = req.body.refresh_token;
-  }
-
-  // Check for refresh token
-  if (!refreshToken) {
+  const sessionCookie = extractSessionCookieFromCookie(req);
+  // Check for session cookie
+  if (!sessionCookie) {
     functions.logger.error(
-      "No Firebase Refresh Token was passed. " +
-      "Make sure to include a refresh_token cookie or body `refresh_token`."
+      "No session cookie found. Login for session cookies."
     );
     res.status(401).json({
       status_code: 401,
@@ -96,16 +89,12 @@ export const validateFirebaseRefreshToken = async (
   }
 
   try {
-    const decodedRefreshToken = await auth.verifySessionCookie(refreshToken, true);
-
-    functions.logger.log("Refresh Token correctly decoded", decodedRefreshToken);
-    console.log("Refresh Token correctly decoded", decodedRefreshToken);
-    console.log("Refresh token", refreshToken)
-    req.user = refreshToken;
-    next();
+    const decodedSessionCookie = await auth.verifySessionCookie(sessionCookie, true);
+    functions.logger.log("Session cookie correctly decoded", decodedSessionCookie);
+    req.user = decodedSessionCookie;
+    return next();
   } catch (error) {
     functions.logger.error("Error while verifying Firebase ID token:", error);
-    console.log(error)
-    res.status(403).json({error: "Unauthorized"});
+    res.status(401).json({error: "Unauthorized"});
   }
 };
