@@ -242,7 +242,14 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
 
     const decodedIdToken = await auth.verifyIdToken(idToken);
 
-    const user = await auth.getUserByEmail(decodedIdToken.email);
+    let user;
+    if (decodedIdToken.email != null) {
+      user = await auth.getUserByEmail(decodedIdToken.email);
+    } else {
+      functions.logger.error("Could not find existing user with email", decodedIdToken.email);
+      res.status(400).json({status_code: 400, error: "Invalid credentials"});
+      return;
+    }
 
     res.cookie("__session", cookies, {
       httpOnly: true,

@@ -1,9 +1,9 @@
-import express, {Request, Response, NextFunction} from "express";
+import express, {NextFunction, Request, Response} from "express";
 import cors, {CorsOptions} from "cors";
 import routes from "./routes";
 import cookieParser from "cookie-parser";
 import * as functions from "firebase-functions";
-import {csrfProtection, generateCsrfToken} from "./middlewares/csrf_middleware";
+import {csrfProtection} from "./middlewares/csrf_middleware";
 import {validateSessionCookie} from "./middlewares/auth_middleware";
 
 const app = express();

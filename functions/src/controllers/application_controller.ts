@@ -15,7 +15,7 @@ import {
   QUESTION_TYPE,
   StringValidation
 } from "../types/application_types";
-import {getUidFromToken} from "../utils/jwt";
+import {getUidFromSessionCookie} from "../utils/jwt";
 
 const bucket = admin.storage().bucket();
 
@@ -46,7 +46,7 @@ const VALID_STATES = Object.values(APPLICATION_STATES);
 export const patchApplication = async (req: Request, res: Response): Promise<void> => {
   let errors = [];
   try {
-    const UID = await getUidFromToken(req)
+    const UID = await getUidFromSessionCookie(req)
     if (!UID) {
       res.status(400).json({
         error: "Invalid authentication token",
@@ -136,7 +136,7 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
  * This method change file name into a proper firebase storage link format.
  */
 async function constructDataToSave(req: Request): Promise<Record<string, string>> {
-  const UID = await getUidFromToken(req)
+  const UID = await getUidFromSessionCookie(req)
 
   const questions: Question[] = await findQuestionsByState(req.body.state);
   const dataToSave: Record<string, string> = {};
@@ -437,7 +437,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
     return;
   }
 
-  const UID = await getUidFromToken(req)
+  const UID = await getUidFromSessionCookie(req)
   if (!UID) {
     res.status(400).json({
       error: "Invalid authentication token",
@@ -716,7 +716,7 @@ export const getApplicationQuestion = async (req: Request, res: Response): Promi
 
 export const getApplicationStatus = async (req: Request, res: Response): Promise<void> => {
   try {
-    const UID = await getUidFromToken(req)
+    const UID = await getUidFromSessionCookie(req)
     if (!UID) {
       res.status(400).json({
         error: "Invalid authentication token",

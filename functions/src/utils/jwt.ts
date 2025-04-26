@@ -2,13 +2,6 @@ import {Request} from "express";
 import {admin} from "../config/firebase";
 import * as functions from "firebase-functions";
 
-export function getCookie(name: string) {
-  const value = `; ${document.cookie}`;
-  const parts = value.split(`; ${name}=`);
-  if (parts.length === 2) return parts.pop().split(';').shift();
-  return null;
-}
-
 /**
  * Extract __session from Header or Cookies. Otherwise, return none.
  * @param req
@@ -50,16 +43,17 @@ export function extractSessionCookieFromCookie(req: Request) {
  * Get UID from token using Firebase method `verifyIdToken`.
  * @param req
  */
-export async function getUidFromToken(req: Request): Promise<string | null> {
-  const idToken = extractSessionFromHeaderOrCookies(req)
+export async function getUidFromSessionCookie(req: Request): Promise<string | null> {
+  const sessionCookie = extractSessionCookieFromCookie(req)
 
-  if (!idToken) return null;
+  if (!sessionCookie) return null;
 
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
-    return decodedToken.uid; // this is the Firebase user's UID
+    const decodedToken = await admin.auth().verifySessionCookie(sessionCookie);
+    functions.logger.log("Decoded session cookie", decodedToken);
+    return decodedToken.user_id; // this is the Firebase user's UID
   } catch (err) {
-    console.error("Token verification failed", err);
+    functions.logger.error("Session token verification failed", err);
     return null;
   }
 }
