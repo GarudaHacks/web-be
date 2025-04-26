@@ -7,7 +7,6 @@ import {FieldValue} from "firebase-admin/firestore";
 import {convertResponseToSnakeCase} from "../utils/camel_case";
 import * as functions from "firebase-functions";
 import {FirebaseError} from "firebase-admin";
-import {TypedRequestBody} from "../types/express";
 import {generateCsrfToken} from "../middlewares/csrf_middleware";
 
 const validateEmailAndPassword = (
@@ -275,10 +274,10 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
  * Session login. Required for native Google Sign In Button.
  */
 export const sessionLogin = async (req: Request, res: Response): Promise<void> => {
-  const idToken = req.body.idToken;
-
+  const idToken = req.body.id_token;
+  console.log(idToken);
   if (!idToken) {
-    functions.logger.error("idToken is not present in the body.")
+    functions.logger.warn("Required id_token in the body")
     res.status(400).json({
       status_code: 400,
       data: "Bad request"
@@ -287,76 +286,51 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
   }
 
   try {
-    const cookies = await auth.createSessionCookie(idToken, {expiresIn: 7 * 24 * 60 * 60 * 1000}); // lasts a week
+    const expiresIn = 7 * 24 * 60 * 60 * 1000; // lasts a week
+    const cookies = await auth.createSessionCookie(idToken, {expiresIn: expiresIn}); // lasts a week
 
-    functions.logger.log("Cookies", cookies);
+    const decodedIdToken = await auth.verifyIdToken(idToken);
+
+    const user = await auth.getUserByEmail(decodedIdToken.email);
 
     res.cookie("__session", cookies, {
       httpOnly: true,
-      // maxAge: expiresIn - epochNow,
+      maxAge: expiresIn,
       sameSite: "strict",
       secure: process.env.NODE_ENV === "production"
     });
+
+    const csrfToken = generateCsrfToken();
+    // http only cookie
+    res.cookie("CSRF-TOKEN", csrfToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict"
+    });
+    // non http only cookie
+    res.cookie("XSRF-TOKEN", csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict"
+    })
+
     res.status(200).json({
-      cookies: cookies
+      "message": "Login successful",
+      "user": {
+        email: user.email,
+        displayName: user.displayName,
+      }
     })
   } catch (e) {
-    functions.logger.error("Error when trying to createSessionCookie", e);
-    res.status(500).json({error: e});
+    const err = e as FirebaseError;
+    if (err.code === "auth/user-not-found") {
+      functions.logger.error("Invalid credentials");
+      res.status(400).json({status_code: 400, error: "Invalid credentials"});
+      return;
+    }
+    functions.logger.error("Error when trying to session login", e);
+    res.status(500).json({status_code: 500, error: e});
   }
-
-
-  // let isValidToken = false;
-  // const idToken = req.body.idToken;
-  //
-  // let isValidRefreshToken = false;
-  // const refreshToken = req.body.refreshToken;
-  //
-  // const exp = req.body.exp;
-  //
-  // try {
-
-  //
-  //   const idToken = await auth.verifyIdToken(idToken)
-  //   const epochNow = new Date().getTime() / 1000;
-  //   isValidToken = true;
-  //
-  //
-  // } catch (e) {
-  //   functions.logger.error("Error while verifying Firebase ID token:", e);
-  //   res.status(403).json({error: "Unauthorized"});
-  // }
-  //
-  // try {
-  //   if (!refreshToken) {
-  //     functions.logger.error("refreshToken is not present in the body.")
-  //     res.status(400).json({
-  //       status_code: 400,
-  //     })
-  //   }
-  //
-  //   const decodedToken = await auth.verifyIdToken(idToken)
-  //   const expiresIn = decodedToken.exp;
-  //   const epochNow = new Date().getTime() / 1000;
-  //   isValidToken = true;
-  // } catch (e) {
-  //   functions.logger.error("Error while verifying Refresh Token:", e);
-  //   res.status(403).json({error: "Unauthorized"});
-  // }
-  //
-  // // set success cookies
-  // res.cookie("__session", decodedToken, {
-  //   httpOnly: true,
-  //   maxAge: expiresIn - epochNow,
-  //   sameSite: "strict",
-  //   secure: process.env.NODE_ENV === "production"
-  // });
-  // res.status(200).json({
-  //   status_code: 200,
-  //   data: true
-  // })
-
-
 }
 
 /**
