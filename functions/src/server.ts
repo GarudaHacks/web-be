@@ -3,7 +3,7 @@ import cors, {CorsOptions} from "cors";
 import routes from "./routes";
 import cookieParser from "cookie-parser";
 import * as functions from "firebase-functions";
-import csrf from "csurf";
+import {csrfProtection, generateCsrfToken} from "./utils/csrf";
 
 const app = express();
 
@@ -16,21 +16,38 @@ const corsOptions: CorsOptions = {
     "https://www.garudahacks.com",
   ],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization"]
+  allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"]
 }
+
 // Middleware
 app.options("*", cors(corsOptions)); // preflight
 app.use(cors(corsOptions));
 app.use(cookieParser())
 app.use(express.json());
 
-const csrfProtection = csrf({ cookie: true });
-app.use(csrfProtection);
-app.all("*", (req: Request, res: Response, next: NextFunction) => {
-  res.cookie("XSRF-TOKEN", req.csrfToken());
-  next();
-});
+// CSRF protection as we use session cookie for authentication.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const csrfToken = generateCsrfToken();
 
+  // http only cookie
+  res.cookie("CSRF-TOKEN", csrfToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict"
+  });
+
+  // non http only cookie
+  res.cookie("XSRF-TOKEN", csrfToken, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict"
+  })
+
+  next()
+})
+app.use(csrfProtection)
+
+// Logging
 app.use((req: Request, res: Response, next: NextFunction) => {
   const logData = {
     method: req.method,
@@ -38,7 +55,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
     headers: req.headers,
     cookies: req.cookies,
     body: req.body,
-    authorizationHeader: req.headers.authorization || "Not Present",
+    authorizationHeader: req.headers || "Not Present",
     sessionCookie: req.cookies.__session || "Not Present"
   };
   const timestamp = new Date().toISOString();

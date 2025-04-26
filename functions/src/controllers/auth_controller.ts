@@ -2,7 +2,7 @@ import {Request, Response} from "express";
 import {db, auth} from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
-import { User, formatUser } from "../models/user";
+import {User, formatUser} from "../models/user";
 import {FieldValue} from "firebase-admin/firestore";
 import {convertResponseToSnakeCase} from "../utils/camel_case";
 import * as functions from "firebase-functions";
@@ -127,18 +127,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         createdAt: FieldValue.serverTimestamp(),
       });
 
-    // set cookies
-    res.cookie("__session", token.idToken, {
-      httpOnly: true,
-      maxAge: 60 * 60 * 1000,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
-    res.cookie("refresh_token", token.refreshToken, {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
+    try {
+      const expiresIn = 7 * 24 * 60 * 60 * 1000; // a week
+      const cookies = await auth.createSessionCookie(token.idToken, {expiresIn: expiresIn});
+      // set cookies
+      res.cookie("__session", cookies, {
+        httpOnly: true,
+        maxAge: expiresIn,
+        sameSite: "strict",
+        secure: process.env.NODE_ENV === "production"
+      });
+    } catch (e) {
+      console.error(e);
+    }
 
     res.status(201).json(
       convertResponseToSnakeCase({
@@ -147,8 +148,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
           email: user.email,
           displayName: user.displayName,
         },
-        idToken: token.idToken,
-        refreshToken: token.refreshToken,
         expiresIn: token.expiresIn,
       })
     );
