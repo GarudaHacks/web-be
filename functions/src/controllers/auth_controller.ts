@@ -8,7 +8,7 @@ import {convertResponseToSnakeCase} from "../utils/camel_case";
 import * as functions from "firebase-functions";
 import {FirebaseError} from "firebase-admin";
 import {TypedRequestBody} from "../types/express";
-import {generateCsrfToken} from "../utils/csrf";
+import {generateCsrfToken} from "../middlewares/csrf_middleware";
 
 const validateEmailAndPassword = (
   email: string,
@@ -274,15 +274,9 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 /**
  * Session login. Required for native Google Sign In Button.
  */
-export const sessionLogin = async (req: TypedRequestBody<{
-  idToken: string;
-  refreshToken: string;
-  exp: number;
-  csrfToken?: string;
-}>, res: Response): Promise<void> => {
-  const csrfToken = req.body.csrfToken || req.headers["csrf-token"];
-
+export const sessionLogin = async (req: Request, res: Response): Promise<void> => {
   const idToken = req.body.idToken;
+
   if (!idToken) {
     functions.logger.error("idToken is not present in the body.")
     res.status(400).json({

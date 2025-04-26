@@ -3,7 +3,8 @@ import cors, {CorsOptions} from "cors";
 import routes from "./routes";
 import cookieParser from "cookie-parser";
 import * as functions from "firebase-functions";
-import {csrfProtection, generateCsrfToken} from "./utils/csrf";
+import {csrfProtection, generateCsrfToken} from "./middlewares/csrf_middleware";
+import {validateSessionCookie} from "./middlewares/auth_middleware";
 
 const app = express();
 
@@ -24,6 +25,9 @@ app.options("*", cors(corsOptions)); // preflight
 app.use(cors(corsOptions));
 app.use(cookieParser())
 app.use(express.json());
+
+// Auth validation
+app.use(validateSessionCookie);
 
 // CSRF protection as we use session cookie for authentication
 app.use(csrfProtection)

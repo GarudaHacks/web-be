@@ -13,6 +13,12 @@ declare global {
   }
 }
 
+const authExemptRoutes = [
+  "/auth/register",
+  "/auth/login",
+  "/auth/session-login"
+]
+
 /**
  * Middleware that validates Firebase ID Tokens passed in the Authorization HTTP header or as a __session cookie.
  * The token should be provided as a Bearer token in the Authorization header or as a __session cookie.
@@ -70,6 +76,9 @@ export const validateSessionCookie = async (
   res: Response,
   next: NextFunction
 ) => {
+  if (authExemptRoutes.some(route => req.path?.startsWith(route))) {
+    return next();
+  }
 
   functions.logger.log(
     "Checking if request is authorized with session cookies"
@@ -87,7 +96,6 @@ export const validateSessionCookie = async (
     });
     return;
   }
-
   try {
     const decodedSessionCookie = await auth.verifySessionCookie(sessionCookie, true);
     functions.logger.log("Session cookie correctly decoded", decodedSessionCookie);
