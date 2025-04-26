@@ -191,55 +191,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   }
 };
 
-export const refreshToken = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const {refreshToken} = req.body;
-
-  if (!refreshToken) {
-    res.status(400).json({error: "Refresh token is required"});
-    return;
-  }
-
-  try {
-    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
-
-    const url = isEmulator
-      ? "http://127.0.0.1:9099/securetoken.googleapis.com/v1/token?key=dummy-key"
-      : `https://securetoken.googleapis.com/v1/token?key=${process.env.WEB_API_KEY}`;
-
-    const token = (
-      await axios.post(url, {
-        grant_type: "refresh_token",
-        refresh_token: refreshToken,
-      })
-    ).data;
-
-    // set cookies
-    res.cookie("__session", token.id_token, {
-      httpOnly: true,
-      maxAge: 60 * 60 * 1000,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
-
-    res.status(200).json(
-      convertResponseToSnakeCase({
-        accessToken: token.id_token,
-        expiresIn: token.expires_in,
-        refreshToken: token.refresh_token,
-        idToken: token.id_token,
-        userId: token.user_id,
-      })
-    );
-  } catch (error) {
-    const err = error as Error;
-    console.error("error:", err.message);
-    res.status(400).json({error: "Refresh token is invalid"});
-  }
-};
-
 export const logout = async (req: Request, res: Response): Promise<void> => {
   const user = req.user!; // from auth middleware
   try {
@@ -330,58 +281,5 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
     }
     functions.logger.error("Error when trying to session login", e);
     res.status(500).json({status_code: 500, error: e});
-  }
-}
-
-/**
- * Used to invalidate user's token everywhere.
- * @param req
- * @param res
- */
-export const invalidateToken = async (req: Request, res: Response): Promise<void> => {
-  try {
-
-    if (!req.body.uid) {
-      res.status(400).json({error: "Refresh token is required"});
-      return;
-    }
-
-    await auth.revokeRefreshTokens(req.body.uid);
-    res.status(200).json({
-      status_code: 200,
-      data: true
-    })
-  } catch (error) {
-    const err = error as FirebaseError;
-
-    if (err.code === "auth/user-not-found") {
-      res.status(400).json({
-        status_code: 400,
-        error: "No such user"
-      });
-      return;
-    }
-
-    functions.logger.error("Error when revoking user token:", err.message);
-    res.status(500).json({error: "Internal server error"});
-  }
-}
-
-export const tokenSandbox = async (req: Request, res: Response): Promise<void> => {
-  try {
-    // let idToken = req.body.idToken;
-    // idToken = await auth.verifyIdToken(idToken)
-    // res.status(200).json({
-    //   decoded: idToken,
-    // })
-    let refreshToken = req.body.refreshToken;
-    refreshToken = await auth.verifySessionCookie(refreshToken, true);
-    res.status(200).json({
-      decoded: refreshToken,
-    })
-    return
-  } catch (error) {
-    res.status(500).json({error: error});
-    return
   }
 }
