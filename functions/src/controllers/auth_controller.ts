@@ -9,6 +9,8 @@ import * as functions from "firebase-functions";
 import {FirebaseError} from "firebase-admin";
 import {generateCsrfToken} from "../middlewares/csrf_middleware";
 
+const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
+
 const validateEmailAndPassword = (
   email: string,
   password: string,
@@ -55,13 +57,12 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     const user = await auth.getUserByEmail(email);
 
     try {
-      const expiresIn = 7 * 24 * 60 * 60 * 1000; // a week
-      const cookies = await auth.createSessionCookie(token.idToken, {expiresIn: expiresIn});
+      const cookies = await auth.createSessionCookie(token.idToken, {expiresIn: SESSION_EXPIRY_SECONDS});
 
       // set session cookies
       res.cookie("__session", cookies, {
         httpOnly: true,
-        maxAge: expiresIn,
+        maxAge: SESSION_EXPIRY_SECONDS,
         sameSite: "strict",
         secure: process.env.NODE_ENV === "production"
       });
@@ -146,12 +147,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       });
 
     try {
-      const expiresIn = 7 * 24 * 60 * 60 * 1000; // a week
-      const cookies = await auth.createSessionCookie(token.idToken, {expiresIn: expiresIn});
+      const cookies = await auth.createSessionCookie(token.idToken, {expiresIn: SESSION_EXPIRY_SECONDS});
       // set cookies
       res.cookie("__session", cookies, {
         httpOnly: true,
-        maxAge: expiresIn,
+        maxAge: SESSION_EXPIRY_SECONDS,
         sameSite: "strict",
         secure: process.env.NODE_ENV === "production"
       });
@@ -226,19 +226,17 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
  */
 export const sessionLogin = async (req: Request, res: Response): Promise<void> => {
   const idToken = req.body.id_token;
-  console.log(idToken);
   if (!idToken) {
     functions.logger.warn("Required id_token in the body")
     res.status(400).json({
-      status_code: 400,
+      status: 400,
       data: "Bad request"
     });
     return;
   }
 
   try {
-    const expiresIn = 7 * 24 * 60 * 60 * 1000; // lasts a week
-    const cookies = await auth.createSessionCookie(idToken, {expiresIn: expiresIn}); // lasts a week
+    const cookies = await auth.createSessionCookie(idToken, {expiresIn: SESSION_EXPIRY_SECONDS}); // lasts a week
 
     const decodedIdToken = await auth.verifyIdToken(idToken);
 
@@ -247,13 +245,13 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
       user = await auth.getUserByEmail(decodedIdToken.email);
     } else {
       functions.logger.error("Could not find existing user with email", decodedIdToken.email);
-      res.status(400).json({status_code: 400, error: "Invalid credentials"});
+      res.status(400).json({status: 400, error: "Invalid credentials"});
       return;
     }
 
     res.cookie("__session", cookies, {
       httpOnly: true,
-      maxAge: expiresIn,
+      maxAge: SESSION_EXPIRY_SECONDS,
       sameSite: "strict",
       secure: process.env.NODE_ENV === "production"
     });
@@ -283,10 +281,38 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
     const err = e as FirebaseError;
     if (err.code === "auth/user-not-found") {
       functions.logger.error("Invalid credentials");
-      res.status(400).json({status_code: 400, error: "Invalid credentials"});
+      res.status(400).json({status: 400, error: "Invalid credentials"});
       return;
     }
     functions.logger.error("Error when trying to session login", e);
-    res.status(500).json({status_code: 500, error: e});
+    res.status(500).json({status: 500, error: e});
+  }
+}
+
+/**
+ * Verify cookie session. To be fetched by auth state manager.
+ * @param req
+ * @param res
+ */
+export const sessionCheck = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const decodedSessionCookie = await auth.verifySessionCookie(req.cookies.__session);
+
+    if (!decodedSessionCookie) {
+      functions.logger.error("Could not find session cookie in the body")
+    }
+    res.status(200).json({
+      status: 200, data: {
+        message: "Session is valid",
+        user: {
+          email: decodedSessionCookie.email,
+          displayName: decodedSessionCookie.name
+        }
+      }
+    })
+    return
+  } catch (e) {
+    functions.logger.error("Error when trying to check session", e);
+    res.status(400).json({status: 400, error: e});
   }
 }

@@ -42,7 +42,7 @@ export const validateSessionCookie = async (
       "No session cookie found. Login for session cookies."
     );
     res.status(401).json({
-      status_code: 401,
+      status: 401,
       error: "Unauthorized"
     });
     return;
@@ -54,6 +54,9 @@ export const validateSessionCookie = async (
     return next();
   } catch (error) {
     functions.logger.error("Error while verifying session cookie:", error);
-    res.status(401).json({error: "Unauthorized"});
+    res.status(401).json({
+      status: 401,
+      error: "Unauthorized"
+    });
   }
 };

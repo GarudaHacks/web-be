@@ -24,7 +24,7 @@ export const csrfProtection = (req: Request, res: Response, next: NextFunction) 
 
   if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
     functions.logger.log("CSRF validation rejected as cookie and header does not match.")
-    return res.status(403).json({ status_code: 403, error: "CSRF token validation failed" });
+    return res.status(403).json({ status: 403, error: "CSRF token validation failed" });
   }
 
   return next();
