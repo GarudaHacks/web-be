@@ -53,7 +53,7 @@ export const validateSessionCookie = async (
     req.user = decodedSessionCookie;
     return next();
   } catch (error) {
-    functions.logger.error("Error while verifying Firebase ID token:", error);
+    functions.logger.error("Error while verifying session cookie:", error);
     res.status(401).json({error: "Unauthorized"});
   }
 };

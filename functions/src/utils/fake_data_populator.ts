@@ -151,6 +151,31 @@ export class FakeDataPopulator {
       }
     }
     await this.createQuestionDocument(q);
+
+
+    // string example
+    q = {
+      order: 1,
+      state: APPLICATION_STATES.INQUIRY,
+      text: "What's your motivation in joining GarudaHacks?",
+      type: QUESTION_TYPE.TEXTAREA,
+      validation: {
+        required: true
+      }
+    }
+    await this.createQuestionDocument(q);
+
+    // string example
+    q = {
+      order: 1,
+      state: APPLICATION_STATES.INQUIRY,
+      text: "Do you have any limitation that we should be concern about?",
+      type: QUESTION_TYPE.TEXTAREA,
+      validation: {
+        required: true
+      }
+    }
+    await this.createQuestionDocument(q);
   }
 
   /**
