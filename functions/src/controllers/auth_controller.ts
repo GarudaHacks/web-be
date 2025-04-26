@@ -54,18 +54,25 @@ export const login = async (req: Request, res: Response): Promise<void> => {
 
     const user = await auth.getUserByEmail(email);
 
-    // set cookies
-    res.cookie("__session", token.idToken, {
-      httpOnly: true,
-      maxAge: 60 * 60 * 1000,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
-    res.cookie("refresh_token", token.refreshToken, {
-      httpOnly: true,
-      sameSite: "strict",
-      secure: process.env.NODE_ENV === "production"
-    });
+    try {
+      const expiresIn = 7 * 24 * 60 * 60 * 1000; // a week
+      const cookies = await auth.createSessionCookie(token.idToken, {expiresIn: expiresIn});
+
+      // set session cookies
+      res.cookie("__session", cookies, {
+        httpOnly: true,
+        maxAge: expiresIn,
+        sameSite: "strict",
+        secure: process.env.NODE_ENV === "production"
+      });
+
+      // revoke refresh token
+      await auth.revokeRefreshTokens(user.uid)
+    } catch (e) {
+      functions.logger.error("Error when returning session for login", e);
+      res.status(500).json({error: "Something went wrong."});
+      return
+    }
 
     res.status(200).json(
       convertResponseToSnakeCase({
@@ -74,9 +81,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
           email: user.email,
           displayName: user.displayName,
         },
-        idToken: token.idToken,
-        refreshToken: token.refreshToken,
-        expiresIn: token.expiresIn,
       })
     );
   } catch (error) {
@@ -138,7 +142,9 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         secure: process.env.NODE_ENV === "production"
       });
     } catch (e) {
-      console.error(e);
+      functions.logger.error("Error when returning session for register", e);
+      res.status(500).json({error: "Something went wrong."});
+      return
     }
 
     res.status(201).json(
@@ -148,7 +154,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
           email: user.email,
           displayName: user.displayName,
         },
-        expiresIn: token.expiresIn,
       })
     );
   } catch (error) {
@@ -239,7 +244,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
 };
 
 /**
- * Returns __session and refresh_token cookie. Intended to be used for login using firebase sdk.
+ * Session login. Required for native Google Sign In Button.
  */
 export const sessionLogin = async (req: TypedRequestBody<{
   idToken: string;
@@ -247,7 +252,7 @@ export const sessionLogin = async (req: TypedRequestBody<{
   exp: number;
   csrfToken?: string;
 }>, res: Response): Promise<void> => {
-  // const csrfToken = req.body.csrfToken || req.headers["csrf-token"];
+  const csrfToken = req.body.csrfToken || req.headers["csrf-token"];
 
   const idToken = req.body.idToken;
   if (!idToken) {
@@ -260,17 +265,23 @@ export const sessionLogin = async (req: TypedRequestBody<{
   }
 
   try {
-    const cookies = await auth.createSessionCookie(idToken, { expiresIn: 60 * 5 * 1000 }); // expires in 5 mins
+    const cookies = await auth.createSessionCookie(idToken, {expiresIn: 7 * 24 * 60 * 60 * 1000}); // lasts a week
 
+    functions.logger.log("Cookies", cookies);
+
+    res.cookie("__session", cookies, {
+      httpOnly: true,
+      // maxAge: expiresIn - epochNow,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production"
+    });
     res.status(200).json({
       cookies: cookies
     })
-  } catch(e) {
+  } catch (e) {
     functions.logger.error("Error when trying to createSessionCookie", e);
     res.status(500).json({error: e});
   }
-
-
 
 
   // let isValidToken = false;
@@ -322,7 +333,6 @@ export const sessionLogin = async (req: TypedRequestBody<{
   //   status_code: 200,
   //   data: true
   // })
-
 
 
 }
