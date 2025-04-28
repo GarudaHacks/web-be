@@ -17,10 +17,10 @@ const auth = admin.auth();
  * This is useful for testing the API locally
  * Comment out this block if you don't want to use fake data
 */
-import { FakeDataPopulator } from "../utils/fake_data_populator";
-if (process.env.FIRESTORE_EMULATOR_HOST !== undefined) {
-  const populator = new FakeDataPopulator(db);
-  populator.generateFakeData();
-}
+// import { FakeDataPopulator } from "../utils/fake_data_populator";
+// if (process.env.FIRESTORE_EMULATOR_HOST !== undefined) {
+//   const populator = new FakeDataPopulator(db);
+//   populator.generateFakeData();
+// }
 
 export { admin, db, auth };

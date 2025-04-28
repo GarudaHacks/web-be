@@ -204,7 +204,6 @@ async function validateApplicationResponse(req: Request, uid: string) {
       })
       continue;
     }
-    ;
 
     const fieldValue = req.body[question.id];
 

@@ -8,6 +8,7 @@ import {convertResponseToSnakeCase} from "../utils/camel_case";
 import * as functions from "firebase-functions";
 import {FirebaseError} from "firebase-admin";
 import {generateCsrfToken} from "../middlewares/csrf_middleware";
+import {APPLICATION_STATUS} from "../types/application_types";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
 
@@ -140,7 +141,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const userData: User = formatUser({
       email: user.email ?? "",
       firstName: user.displayName ?? "",
-      status: "not applicable",
+      status: APPLICATION_STATUS.NOT_APPLICABLE,
     });
 
     await db
@@ -248,6 +249,23 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
     let user;
     if (decodedIdToken.email != null) {
       user = await auth.getUserByEmail(decodedIdToken.email);
+
+      // update user record for first time
+      const docRef = await db.collection("questions").doc(user.uid).get();
+      if (!docRef.exists) {
+        const userData: User = formatUser({
+          email: user.email ?? "",
+          firstName: user.displayName ?? "",
+          status: APPLICATION_STATUS.NOT_APPLICABLE,
+        });
+        await db
+          .collection("users")
+          .doc(user.uid)
+          .set({
+            ...userData,
+            createdAt: FieldValue.serverTimestamp(),
+          });
+      }
     } else {
       functions.logger.error("Could not find existing user with email", decodedIdToken.email);
       res.status(400).json({status: 400, error: "Invalid credentials"});
