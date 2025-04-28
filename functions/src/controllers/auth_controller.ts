@@ -18,14 +18,19 @@ const validateEmailAndPassword = (
   res: Response
 ): boolean => {
   if (!validator.isEmail(email)) {
-    res.status(400).json({error: "Invalid email"});
+    res.status(400).json({
+      status: 400,
+      error: "Invalid email"
+    });
     return false;
   }
 
   if (!validator.isLength(password, {min: 6})) {
     res
       .status(400)
-      .json({error: "Password must be at least 6 characters long"});
+      .json({
+        status: 400,
+        error: "Password must be at least 6 characters long"});
     return false;
   }
 
@@ -101,8 +106,8 @@ export const login = async (req: Request, res: Response): Promise<void> => {
     );
   } catch (error) {
     const err = error as Error;
-    console.error("error:", err.message);
-    res.status(400).json({error: "Invalid email or password"});
+    functions.logger.error("Error when trying to log in:", err.message);
+    res.status(400).json({status: 400, error: "Invalid email or password"});
   }
 };
 
@@ -177,12 +182,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       })
     } catch (e) {
       functions.logger.error("Error when returning session for register", e);
-      res.status(500).json({error: "Something went wrong."});
+      res.status(500).json({
+        status: 500,
+        error: "Something went wrong"});
       return
     }
 
     res.status(201).json(
       convertResponseToSnakeCase({
+        status: 201,
         message: "Registration successful",
         user: {
           email: user.email,
@@ -193,7 +201,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(400).json({error: err.message});
+    res.status(400).json({status: 400, error: err.message});
   }
 };
 
@@ -210,6 +218,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
     });
 
     res.status(200).json({
+      status: 200,
       message: "Logout successful",
     });
   } catch (error) {
@@ -223,7 +232,7 @@ export const logout = async (req: Request, res: Response): Promise<void> => {
       secure: process.env.NODE_ENV === "production"
     });
 
-    res.status(500).json({error: "Something went wrong."});
+    res.status(500).json({status, error: "Something went wrong."});
   }
 };
 
@@ -236,7 +245,7 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
     functions.logger.warn("Required id_token in the body")
     res.status(400).json({
       status: 400,
-      data: "Bad request"
+      error: "Required id_token in the body"
     });
     return;
   }
@@ -294,6 +303,7 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
     })
 
     res.status(200).json({
+      status: 200,
       "message": "Login successful",
       "user": {
         email: user.email,
@@ -303,8 +313,16 @@ export const sessionLogin = async (req: Request, res: Response): Promise<void> =
   } catch (e) {
     const err = e as FirebaseError;
     if (err.code === "auth/user-not-found") {
+      functions.logger.error("User not found", e);
+      res.status(404).json({status: 404, error: "User not found"});
+      return;
+    } else if (err.code === "auth/invalid-id-token") {
       functions.logger.error("Invalid credentials");
-      res.status(400).json({status: 400, error: "Invalid credentials"});
+      res.status(401).json({status: 401, error: "ID token is invalid"});
+      return;
+    } else if (err.code === "auth/id-token-expired") {
+      functions.logger.error("The provided Firebase ID token is expired");
+      res.status(401).json({status: 401, error: "The provided Firebase ID token is expired"});
       return;
     }
     functions.logger.error("Error when trying to session login", e);
@@ -322,11 +340,14 @@ export const sessionCheck = async (req: Request, res: Response): Promise<void> =
     const decodedSessionCookie = await auth.verifySessionCookie(req.cookies.__session);
 
     if (!decodedSessionCookie) {
-      functions.logger.error("Could not find session cookie in the body")
+      functions.logger.error("Could not find session cookie")
+      res.status(400).json({status: 400, error: "Could not find session cookie"});
     }
+
     res.status(200).json({
-      status: 200, data: {
-        message: "Session is valid",
+      status: 200,
+      message: "Session is valid",
+      data: {
         user: {
           email: decodedSessionCookie.email,
           displayName: decodedSessionCookie.name

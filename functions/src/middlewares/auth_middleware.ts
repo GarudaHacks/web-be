@@ -2,6 +2,7 @@ import * as functions from "firebase-functions";
 import {admin, auth} from "../config/firebase";
 import {NextFunction, Request, Response} from "express";
 import {extractSessionCookieFromCookie} from "../utils/jwt";
+import {FirebaseError} from "firebase-admin";
 
 // Extend Express Request interface to include the user property.
 declare global {
@@ -43,7 +44,7 @@ export const validateSessionCookie = async (
     );
     res.status(401).json({
       status: 401,
-      error: "Unauthorized"
+      error: "No session cookie found"
     });
     return;
   }
@@ -56,7 +57,7 @@ export const validateSessionCookie = async (
     functions.logger.error("Error while verifying session cookie:", error);
     res.status(401).json({
       status: 401,
-      error: "Unauthorized"
+      error: "Error while verifying session cookie"
     });
   }
 };
