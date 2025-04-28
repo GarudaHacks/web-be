@@ -1,5 +1,13 @@
 import {Request} from "express";
 
+export enum APPLICATION_STATUS {
+  DRAFT = "draft",
+  SUBMITTED = "submitted",
+  WAITLISTED = "waitlisted",
+  REJECTED = "rejected",
+  ACCEPTED = "accepted"
+}
+
 /**
  * State for part to show in the web UI of GH Portal.
  */

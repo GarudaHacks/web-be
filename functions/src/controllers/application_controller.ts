@@ -3,7 +3,7 @@ import {admin, db} from "../config/firebase";
 import validator from "validator";
 import Busboy from "busboy";
 import {
-  APPLICATION_STATES,
+  APPLICATION_STATES, APPLICATION_STATUS,
   DatetimeValidation,
   DropdownValidation,
   ExtendedRequest,
@@ -16,6 +16,7 @@ import {
   StringValidation
 } from "../types/application_types";
 import {getUidFromSessionCookie} from "../utils/jwt";
+import * as functions from "firebase-functions";
 
 const bucket = admin.storage().bucket();
 
@@ -49,6 +50,7 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
     const UID = await getUidFromSessionCookie(req)
     if (!UID) {
       res.status(400).json({
+        status: 400,
         error: "Invalid authentication token",
       });
       return;
@@ -56,6 +58,7 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
 
     if (!req.body || Object.keys(req.body).length === 0) {
       res.status(400).json({
+        status: 400,
         error: "Expected body",
       });
       return;
@@ -64,6 +67,7 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
     errors = validateApplicationState(req);
     if (errors.length > 0) {
       res.status(400).json({
+        status: 400,
         error: "Validation failed",
         details: errors,
       });
@@ -73,6 +77,7 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
     errors = await validateApplicationResponse(req, UID);
     if (errors.length > 0) {
       res.status(400).json({
+        status: 400,
         error: "Validation failed",
         details: errors,
       });
@@ -82,10 +87,14 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
     const dataToSave = await constructDataToSave(req);
     await saveData(dataToSave, req.body.state, UID);
 
-    res.status(200).json({success: true, data: dataToSave});
+    res.status(201).json({
+      status: 201,
+      success: true,
+      data: dataToSave
+    });
   } catch (error) {
     const e = error as Error;
-    res.status(500).json({error: e.message});
+    res.status(500).json({status: 500, error: e.message});
   }
 };
 
@@ -158,12 +167,12 @@ function validateApplicationState(req: Request) {
   if (!("state" in req.body)) {
     errors.push({
       field_id: `state`,
-      message: `Missing required field: state`,
+      message: `Required field state`,
     });
   } else if (!VALID_STATES.includes(req.body.state)) {
     errors.push({
       field_id: `state`,
-      message: `Invalid state: ${req.body.state}. Must be one of ${VALID_STATES.join(", ")}`,
+      message: `Invalid state ${req.body.state}. Must be one of ${VALID_STATES.join(", ")}`,
     });
   }
   return errors;
@@ -191,7 +200,7 @@ async function validateApplicationResponse(req: Request, uid: string) {
     if (question.id === undefined || question.id === null) {
       errors.push({
         field_id: `id`,
-        message: `Missing required field on question: id`,
+        message: `Required field id`,
       })
       continue;
     }
@@ -246,7 +255,7 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.text}`,
+      message: `This field is required`,
     });
     return errors;
   }
@@ -261,7 +270,7 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
     if (!exists) {
       errors.push({
         field_id: `${question.id}`,
-        message: `File not found or hasn't been uploaded: ${question.id}`,
+        message: `File not found or hasn't been uploaded`,
       });
       return errors;
     }
@@ -270,14 +279,14 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
     if (!metadata.metadata || metadata.metadata.originalName !== fieldValue) {
       errors.push({
         field_id: `${question.id}`,
-        message: `Invalid file metadata for: ${question.id}`,
+        message: `Invalid file metadata`,
       });
     }
   } catch (error) {
     const e = error as Error;
     errors.push({
       field_id: `${question.id}`,
-      message: `Error checking file: ${e.message}`,
+      message: `Error checking file`,
     });
   }
 
@@ -294,7 +303,7 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.text}`,
+      message: `This field is required`,
     });
     return errors;
   }
@@ -304,7 +313,7 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
   if (options && !options.includes(fieldValue)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Invalid value: ${fieldValue}. Must be one of ${options.join(", ")}`,
+      message: `Invalid value. Must be one of ${options.join(", ")}`,
     });
   }
   return errors;
@@ -320,7 +329,7 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.text}`,
+      message: `This field is required`,
     });
     return errors;
   }
@@ -329,7 +338,7 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
   if (!validator.isISO8601(fieldValue)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Date must be in ISO8601 string format: ${fieldValue}`,
+      message: `Date must be in ISO8601 string format`,
     });
   }
   return errors;
@@ -345,7 +354,7 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.text}`,
+      message: `This field is required`,
     });
     return errors;
   }
@@ -354,7 +363,7 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   if (typeof fieldValue !== "number") {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be type of number: ${fieldValue}`,
+      message: `Must be type of number`,
     });
     return errors;
   }
@@ -364,12 +373,12 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
     fieldValue < validation.minValue) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Number value must be more than equals ${validation.minValue}: ${fieldValue}`,
+      message: `Must be more than equals ${validation.minValue}`,
     });
   } else if (validation.maxValue && fieldValue > validation.maxValue) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Number value must be less than equals ${validation.maxValue}: ${fieldValue}`,
+      message: `Must be less than equals ${validation.maxValue}`,
     });
   }
   return errors;
@@ -387,7 +396,7 @@ function validateStringValue(fieldValue: string | any, question: Question) {
   if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Missing required field: ${question.text}`,
+      message: `This field is required`,
     });
     return errors;
   }
@@ -396,7 +405,7 @@ function validateStringValue(fieldValue: string | any, question: Question) {
   if (typeof fieldValue !== "string") {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be type of string: ${fieldValue}`,
+      message: `Must be type of string`,
     });
     return errors;
   }
@@ -406,12 +415,12 @@ function validateStringValue(fieldValue: string | any, question: Question) {
     fieldValue.length < validation.minLength) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be at least ${validation.minLength} character(s): ${fieldValue}`,
+      message: `Must be at least ${validation.minLength} character(s)`,
     });
   } else if (validation.maxLength && fieldValue.length > validation.maxLength) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be less than ${validation.maxLength} character(s): ${fieldValue}`,
+      message: `Must be less than ${validation.maxLength} character(s)`,
     });
   }
   // other string validation if needed
@@ -433,13 +442,17 @@ function validateStringValue(fieldValue: string | any, question: Question) {
  */
 export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<void> => {
   if (!req.headers["content-type"]) {
-    res.status(400).json({error: "Missing content-type header"});
+    res.status(400).json({
+      status: 400,
+      error: "Missing content-type header"
+    });
     return;
   }
 
   const UID = await getUidFromSessionCookie(req)
   if (!UID) {
     res.status(400).json({
+      status: 400,
       error: "Invalid authentication token",
     });
     return;
@@ -448,11 +461,12 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
   const questionId: string | undefined = req.query.questionId?.toString();
   if (!questionId) {
     res.status(400).json({
+      status: 400,
       error: "Validation failed",
       details: [
         {
           field_id: `questionId`,
-          message: `Missing required field: questionId`,
+          message: `This field is required`,
         }
       ]
     });
@@ -467,7 +481,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
         details: [
           {
             field_id: `${questionId}`,
-            message: `No such question: ${questionId}`,
+            message: `No such question`,
           }
         ]
       });
@@ -550,11 +564,12 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
     if (!fileData) {
       res.status(400)
         .json({
+          status: 400,
           error: "Failed to upload",
           details: [
             {
               field_id: `${questionId}`,
-              message: `Missing required field or unsupported file type: ${questionId}`,
+              message: `This field is required or unsupported file type`,
             }
           ]
         });
@@ -606,10 +621,16 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
     stream.end(safeFileData.buffer);
 
     const publicUrl = await uploadPromise;
-    res.status(200).json({message: "File uploaded successfully", url: publicUrl});
+    res.status(201).json({
+      status: 201,
+      message: "File uploaded successfully",
+      data: {
+        url: publicUrl,
+      }
+    });
   } catch (error) {
     console.error("Upload error:", error);
-    res.status(500).json({error: "Internal server error"});
+    res.status(500).json({status: 500, error: "Internal server error"});
   }
 }
 
@@ -635,11 +656,12 @@ export const getApplicationQuestions = async (req: Request, res: Response): Prom
     const state: string | undefined = req.query.state?.toString();
     if (!state) {
       res.status(400).json({
+        status: 400,
         error: "Bad request",
         details: [
           {
             field_id: `state`,
-            message: `Missing required param: state`,
+            message: `This field is required`,
           }
         ]
       });
@@ -648,11 +670,12 @@ export const getApplicationQuestions = async (req: Request, res: Response): Prom
 
     if (!VALID_STATES.includes(state as APPLICATION_STATES)) {
       res.status(400).json({
+        status: 400,
         error: "Bad request",
         details: [
           {
             field_id: "state",
-            message: `Invalid state value: ${state}. Must be one of ${VALID_STATES.join(", ")}`,
+            message: `This field is required. Must be one of ${VALID_STATES.join(", ")}`,
           },
         ],
       });
@@ -677,11 +700,12 @@ export const getApplicationQuestion = async (req: Request, res: Response): Promi
     const questionId: string | undefined = req.query.questionId?.toString();
     if (!questionId) {
       res.status(400).json({
+        status: 400,
         error: "Bad request",
         details: [
           {
             field_id: `questionId`,
-            message: `Missing required param: questionId`,
+            message: `This field is required`,
           }
         ]
       });
@@ -692,6 +716,7 @@ export const getApplicationQuestion = async (req: Request, res: Response): Promi
 
     if (!question) {
       res.status(404).json({
+        status: 404,
         error: "Not found",
         details: [
           {
@@ -719,6 +744,7 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
     const UID = await getUidFromSessionCookie(req)
     if (!UID) {
       res.status(400).json({
+        status: 400,
         error: "Invalid authentication token",
       });
       return;
@@ -727,6 +753,7 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
     const docRef = await db.collection("users").doc(UID).get();
     if (!docRef.exists) {
       res.status(404).json({
+        status: 404,
         error: "Not found",
         message: `Cannot find this user`
       });
@@ -736,6 +763,7 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
 
     if (!data) {
       res.status(404).json({
+        status: 404,
         error: "Not found",
         message: `Cannot find application status for this user`,
       })
@@ -748,6 +776,43 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
     })
   } catch (error) {
     const e = error as Error;
-    res.status(500).json({error: e.message});
+    res.status(500).json({
+      status: 500,
+      error: e.message
+    });
+  }
+}
+
+export const setApplicationStatus = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const UID = await getUidFromSessionCookie(req)
+
+    if (!UID) {
+      res.status(400).json({
+        status: 400,
+        error: "Invalid authentication token",
+      });
+      return;
+    }
+
+    const userRef = db.collection("users").doc(UID);
+
+    const data: Record<string, string> = {
+      status: APPLICATION_STATUS.SUBMITTED,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await userRef.set(data, {merge: true});
+
+    res.status(201).json({
+      status: 201,
+      success: true,
+    })
+  } catch (err) {
+    functions.logger.error("Error updating application status:", err);
+    res.status(500).json({
+      status: 500,
+      error: "Internal Server Error"
+    });
   }
 }
