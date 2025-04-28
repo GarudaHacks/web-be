@@ -122,6 +122,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       password,
     });
 
+    // set custom claims to user
+    await auth.setCustomUserClaims(user.uid, {
+      role: "User"
+    })
+
     const customToken = await auth.createCustomToken(user.uid);
 
     const url = isEmulator

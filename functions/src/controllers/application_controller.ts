@@ -783,7 +783,7 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
   }
 }
 
-export const setApplicationStatus = async (req: Request, res: Response): Promise<void> => {
+export const setApplicationStatusToSubmitted = async (req: Request, res: Response): Promise<void> => {
   try {
     const UID = await getUidFromSessionCookie(req)
 
