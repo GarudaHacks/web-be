@@ -120,6 +120,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   if (!validateEmailAndPassword(email, password, res)) return;
 
   try {
+
+    if (!name) {
+      res.status(400).json({
+        status: 400,
+        error: "Name is required"
+      })
+      return
+    }
+
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     const user = await auth.createUser({
