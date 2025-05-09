@@ -282,7 +282,6 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
       });
     }
   } catch (error) {
-    const e = error as Error;
     errors.push({
       field_id: `${question.id}`,
       message: `Error checking file`,
