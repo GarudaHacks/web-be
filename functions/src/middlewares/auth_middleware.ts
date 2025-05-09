@@ -2,7 +2,6 @@ import * as functions from "firebase-functions";
 import {admin, auth} from "../config/firebase";
 import {NextFunction, Request, Response} from "express";
 import {extractSessionCookieFromCookie} from "../utils/jwt";
-import {FirebaseError} from "firebase-admin";
 
 // Extend Express Request interface to include the user property.
 declare global {

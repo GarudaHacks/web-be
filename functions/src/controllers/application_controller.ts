@@ -1,9 +1,10 @@
-import {Request, Response} from "express";
-import {admin, db} from "../config/firebase";
+import { Request, Response } from "express";
+import { admin, db } from "../config/firebase";
 import validator from "validator";
 import Busboy from "busboy";
 import {
-  APPLICATION_STATES, APPLICATION_STATUS,
+  APPLICATION_STATES,
+  APPLICATION_STATUS,
   DatetimeValidation,
   DropdownValidation,
   ExtendedRequest,
@@ -13,16 +14,16 @@ import {
   NumberValidation,
   Question,
   QUESTION_TYPE,
-  StringValidation
+  StringValidation,
 } from "../types/application_types";
-import {getUidFromSessionCookie} from "../utils/jwt";
+import { getUidFromSessionCookie } from "../utils/jwt";
 import * as functions from "firebase-functions";
 
 const bucket = admin.storage().bucket();
 
 // upload file
 const USER_UPLOAD_PATH = `users/uploads/`;
-const STORAGE_BASE_LINK = `https://storage.googleapis.com/${bucket.name}/`
+const STORAGE_BASE_LINK = `https://storage.googleapis.com/${bucket.name}/`;
 
 const VALID_STATES = Object.values(APPLICATION_STATES);
 
@@ -44,10 +45,13 @@ const VALID_STATES = Object.values(APPLICATION_STATES);
  * This field will be validated accordingly and ignore any other
  * additional fields that is included in the request.
  */
-export const patchApplication = async (req: Request, res: Response): Promise<void> => {
+export const patchApplication = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   let errors = [];
   try {
-    const UID = await getUidFromSessionCookie(req)
+    const UID = await getUidFromSessionCookie(req);
     if (!UID) {
       res.status(400).json({
         status: 400,
@@ -90,16 +94,20 @@ export const patchApplication = async (req: Request, res: Response): Promise<voi
     res.status(201).json({
       status: 201,
       success: true,
-      data: dataToSave
+      data: dataToSave,
     });
   } catch (error) {
     const e = error as Error;
-    res.status(500).json({status: 500, error: e.message});
+    res.status(500).json({ status: 500, error: e.message });
   }
 };
 
 // eslint-disable-next-line require-jsdoc
-async function saveData(dataToSave: Record<string, string>, state: APPLICATION_STATES, uid: string) {
+async function saveData(
+  dataToSave: Record<string, string>,
+  state: APPLICATION_STATES,
+  uid: string
+) {
   try {
     // if currently in PROFILE state, then upsert data to `users` collection.
     if (state === APPLICATION_STATES.PROFILE) {
@@ -115,7 +123,7 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
         data.createdAt = new Date().toISOString();
       }
 
-      await userRef.set(data, {merge: true});
+      await userRef.set(data, { merge: true });
     }
 
     // upsert other data in `application` section.
@@ -132,7 +140,7 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
         data.createdAt = new Date().toISOString();
       }
 
-      await docRef.set(data, {merge: true});
+      await docRef.set(data, { merge: true });
     }
   } catch (error) {
     console.error("Error saving application:", error);
@@ -144,8 +152,10 @@ async function saveData(dataToSave: Record<string, string>, state: APPLICATION_S
  * Construct data to be saved in a proper format.
  * This method change file name into a proper firebase storage link format.
  */
-async function constructDataToSave(req: Request): Promise<Record<string, string>> {
-  const UID = await getUidFromSessionCookie(req)
+async function constructDataToSave(
+  req: Request
+): Promise<Record<string, string>> {
+  const UID = await getUidFromSessionCookie(req);
 
   const questions: Question[] = await findQuestionsByState(req.body.state);
   const dataToSave: Record<string, string> = {};
@@ -153,7 +163,11 @@ async function constructDataToSave(req: Request): Promise<Record<string, string>
     if (question.id === undefined || question.id === null) continue;
     const fieldValue = req.body[question.id];
     if (question.type === QUESTION_TYPE.FILE) {
-      dataToSave[question.id] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${question.id}.${req.body[question.id].split(".").pop()}`;
+      dataToSave[
+        question.id
+      ] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${
+        question.id
+      }.${req.body[question.id].split(".").pop()}`;
     } else {
       dataToSave[question.id] = fieldValue;
     }
@@ -172,21 +186,29 @@ function validateApplicationState(req: Request) {
   } else if (!VALID_STATES.includes(req.body.state)) {
     errors.push({
       field_id: `state`,
-      message: `Invalid state ${req.body.state}. Must be one of ${VALID_STATES.join(", ")}`,
+      message: `Invalid state ${
+        req.body.state
+      }. Must be one of ${VALID_STATES.join(", ")}`,
     });
   }
   return errors;
 }
 
 // eslint-disable-next-line require-jsdoc
-async function findQuestionsByState(state: APPLICATION_STATES): Promise<Question[]> {
-  const snapshot = await db.collection("questions")
+async function findQuestionsByState(
+  state: APPLICATION_STATES
+): Promise<Question[]> {
+  const snapshot = await db
+    .collection("questions")
     .where("state", "==", state)
     .get();
-  const questions = snapshot.docs.map((doc) => ({
-    id: doc.id,
-    ...doc.data(),
-  } as Question));
+  const questions = snapshot.docs.map(
+    (doc) =>
+      ({
+        id: doc.id,
+        ...doc.data(),
+      } as Question)
+  );
   return questions;
 }
 
@@ -201,7 +223,7 @@ async function validateApplicationResponse(req: Request, uid: string) {
       errors.push({
         field_id: `id`,
         message: `Required field id`,
-      })
+      });
       continue;
     }
 
@@ -213,26 +235,28 @@ async function validateApplicationResponse(req: Request, uid: string) {
 
     let fieldErrors;
     switch (question.type) {
-      case QUESTION_TYPE.STRING:
-        fieldErrors = validateStringValue(fieldValue, question);
-        break;
-      case QUESTION_TYPE.TEXTAREA:
-        fieldErrors = validateStringValue(fieldValue, question);
-        break;
-      case QUESTION_TYPE.NUMBER:
-        fieldErrors = validateNumberValue(fieldValue, question);
-        break;
-      case QUESTION_TYPE.DATE:
-        fieldErrors = validateDatetimeValue(fieldValue, question);
-        break;
-      case QUESTION_TYPE.DROPDOWN:
-        fieldErrors = validateDropdownValue(fieldValue, question);
-        break;
-      case QUESTION_TYPE.FILE:
-        fieldErrors = await validateFileUploaded(fieldValue, question, uid)
-        break;
-      default:
-        fieldErrors = [`Unsupported type for field ${question.id}: ${typeof fieldValue}`];
+    case QUESTION_TYPE.STRING:
+      fieldErrors = validateStringValue(fieldValue, question);
+      break;
+    case QUESTION_TYPE.TEXTAREA:
+      fieldErrors = validateStringValue(fieldValue, question);
+      break;
+    case QUESTION_TYPE.NUMBER:
+      fieldErrors = validateNumberValue(fieldValue, question);
+      break;
+    case QUESTION_TYPE.DATE:
+      fieldErrors = validateDatetimeValue(fieldValue, question);
+      break;
+    case QUESTION_TYPE.DROPDOWN:
+      fieldErrors = validateDropdownValue(fieldValue, question);
+      break;
+    case QUESTION_TYPE.FILE:
+      fieldErrors = await validateFileUploaded(fieldValue, question, uid);
+      break;
+    default:
+      fieldErrors = [
+        `Unsupported type for field ${question.id}: ${typeof fieldValue}`,
+      ];
     }
 
     errors.push(...fieldErrors);
@@ -245,13 +269,20 @@ async function validateApplicationResponse(req: Request, uid: string) {
  * Checking is done by matching the originalName in the uploaded metadata
  * if match, we confirm that file is uploaded already.
  */
-async function validateFileUploaded(fieldValue: string | any, question: Question, uid: string) {
+async function validateFileUploaded(
+  fieldValue: string | any,
+  question: Question,
+  uid: string
+) {
   const errors = [];
 
   const validation = question.validation as FileValidation;
 
   // required
-  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (
+    validation.required === true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     errors.push({
       field_id: `${question.id}`,
       message: `This field is required`,
@@ -262,7 +293,7 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
   try {
     // check in firebase storage
     const fileName = `${uid}_${question.id}.${fieldValue.split(".").pop()}`;
-    const fullFilename = `${USER_UPLOAD_PATH}${fileName}`
+    const fullFilename = `${USER_UPLOAD_PATH}${fileName}`;
     const fileUpload = bucket.file(fullFilename);
 
     const [exists] = await fileUpload.exists();
@@ -282,7 +313,6 @@ async function validateFileUploaded(fieldValue: string | any, question: Question
       });
     }
   } catch (error) {
-    const e = error as Error;
     errors.push({
       field_id: `${question.id}`,
       message: `Error checking file`,
@@ -299,7 +329,10 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
   const validation = question.validation as DropdownValidation;
 
   // required
-  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (
+    validation.required === true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     errors.push({
       field_id: `${question.id}`,
       message: `This field is required`,
@@ -325,7 +358,10 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
   const validation = question.validation as DatetimeValidation;
 
   // required
-  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (
+    validation.required === true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     errors.push({
       field_id: `${question.id}`,
       message: `This field is required`,
@@ -350,7 +386,10 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   const validation = question.validation as NumberValidation;
 
   // required
-  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (
+    validation.required === true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     errors.push({
       field_id: `${question.id}`,
       message: `This field is required`,
@@ -368,8 +407,7 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   }
 
   // check value
-  if (validation.minValue &&
-    fieldValue < validation.minValue) {
+  if (validation.minValue && fieldValue < validation.minValue) {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be more than equals ${validation.minValue}`,
@@ -392,7 +430,10 @@ function validateStringValue(fieldValue: string | any, question: Question) {
   const validation = question.validation as StringValidation;
 
   // required
-  if (validation.required === true && (fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+  if (
+    validation.required === true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     errors.push({
       field_id: `${question.id}`,
       message: `This field is required`,
@@ -410,8 +451,7 @@ function validateStringValue(fieldValue: string | any, question: Question) {
   }
 
   // check length
-  if (validation.minLength &&
-    fieldValue.length < validation.minLength) {
+  if (validation.minLength && fieldValue.length < validation.minLength) {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be at least ${validation.minLength} character(s)`,
@@ -439,16 +479,19 @@ function validateStringValue(fieldValue: string | any, question: Question) {
  * - `file`: file to be uploaded
  * - `questionId`: question id to be linked to the file
  */
-export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<void> => {
+export const uploadFile = async (
+  req: ExtendedRequest,
+  res: Response
+): Promise<void> => {
   if (!req.headers["content-type"]) {
     res.status(400).json({
       status: 400,
-      error: "Missing content-type header"
+      error: "Missing content-type header",
     });
     return;
   }
 
-  const UID = await getUidFromSessionCookie(req)
+  const UID = await getUidFromSessionCookie(req);
   if (!UID) {
     res.status(400).json({
       status: 400,
@@ -466,24 +509,23 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
         {
           field_id: `questionId`,
           message: `This field is required`,
-        }
-      ]
+        },
+      ],
     });
     return;
   }
 
-  const question: Question = <Question>(await findQuestionById(questionId))!;
+  const question: Question = <Question>await findQuestionById(questionId);
   if (!question) {
-    res.status(400)
-      .json({
-        error: "Validation failed",
-        details: [
-          {
-            field_id: `${questionId}`,
-            message: `No such question`,
-          }
-        ]
-      });
+    res.status(400).json({
+      error: "Validation failed",
+      details: [
+        {
+          field_id: `${questionId}`,
+          message: `No such question`,
+        },
+      ],
+    });
     return;
   }
 
@@ -494,7 +536,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
     headers: req.headers,
     limits: {
       fileSize: MAX_FILE_SIZE * 1024 * 1024,
-    }
+    },
   });
 
   let fileData: FileData | null = null;
@@ -502,49 +544,66 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
 
   try {
     await new Promise((resolve, reject) => {
-      busboy.once("close", resolve)
+      busboy
+        .once("close", resolve)
         .once("error", reject)
-        .on("file", (fieldname: string, file: NodeJS.ReadableStream, info: FileInfo) => {
-          // const {filename, encoding, mimeType} = info;
-          const {filename, mimeType} = info;
+        .on(
+          "file",
+          (fieldname: string, file: NodeJS.ReadableStream, info: FileInfo) => {
+            // const {filename, encoding, mimeType} = info;
+            const { filename, mimeType } = info;
 
-          if (!validation.allowedTypes || !validation.allowedTypes.includes(mimeType)) {
-            file.resume(); // discard the file
-            return;
+            if (
+              !validation.allowedTypes ||
+              !validation.allowedTypes.includes(mimeType)
+            ) {
+              file.resume(); // discard the file
+              return;
+            }
+
+            const chunks: Buffer[] = [];
+            file.on("data", (chunk: Buffer) => {
+              if (!fileSizeExceeded) {
+                // only collect chunks if size limit not exceeded
+                chunks.push(chunk);
+              }
+            });
+
+            // handle file size limit
+            file.on("limit", () => {
+              fileSizeExceeded = true;
+              res.writeHead(413, {
+                Connection: "close",
+                "Content-Type": "application/json",
+              });
+              res.end(
+                JSON.stringify({
+                  error: "File too large",
+                  details: [
+                    {
+                      field_id: questionId,
+                      message: `File size exceeds maximum limit of ${
+                        MAX_FILE_SIZE / (1024 * 1024)
+                      }MB`,
+                    },
+                  ],
+                })
+              );
+            });
+
+            file.on("end", () => {
+              if (!fileSizeExceeded) {
+                const newfileData: FileData = {
+                  buffer: Buffer.concat(chunks as unknown as Uint8Array[]),
+                  originalname: filename,
+                  mimetype: mimeType,
+                  fieldname: fieldname,
+                };
+                fileData = newfileData;
+              }
+            });
           }
-
-          const chunks: Buffer[] = [];
-          file.on("data", (chunk: Buffer) => {
-            if (!fileSizeExceeded) { // only collect chunks if size limit not exceeded
-              chunks.push(chunk);
-            }
-          });
-
-          // handle file size limit
-          file.on("limit", () => {
-            fileSizeExceeded = true;
-            res.writeHead(413, {"Connection": "close", "Content-Type": "application/json"});
-            res.end(JSON.stringify({
-              error: "File too large",
-              details: [{
-                field_id: questionId,
-                message: `File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)}MB`
-              }]
-            }));
-          });
-
-          file.on("end", () => {
-            if (!fileSizeExceeded) {
-              const newfileData: FileData = {
-                buffer: Buffer.concat(chunks),
-                originalname: filename,
-                mimetype: mimeType,
-                fieldname: fieldname
-              };
-              fileData = newfileData;
-            }
-          });
-        });
+        );
 
       // feed busboy with the request data
       if (req.rawBody) {
@@ -561,18 +620,17 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
     }
 
     if (!fileData) {
-      res.status(400)
-        .json({
-          status: 400,
-          error: "Failed to upload",
-          details: [
-            {
-              field_id: `${questionId}`,
-              message: `This field is required or unsupported file type`,
-            }
-          ]
-        });
-      return
+      res.status(400).json({
+        status: 400,
+        error: "Failed to upload",
+        details: [
+          {
+            field_id: `${questionId}`,
+            message: `This field is required or unsupported file type`,
+          },
+        ],
+      });
+      return;
     }
 
     const safeFileData = fileData as {
@@ -583,7 +641,9 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
     };
 
     // upload file to firebase
-    const fileName = `${USER_UPLOAD_PATH}${UID}_${question.id}.${safeFileData.originalname.split(".").pop()}`;
+    const fileName = `${USER_UPLOAD_PATH}${UID}_${
+      question.id
+    }.${safeFileData.originalname.split(".").pop()}`;
     const fileUpload = bucket.file(fileName);
 
     // check if file exists and delete it
@@ -600,7 +660,7 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
           questionId: question.id,
           uploadedAt: new Date().toISOString(),
           originalName: safeFileData.originalname,
-        }
+        },
       },
     });
 
@@ -625,13 +685,13 @@ export const uploadFile = async (req: ExtendedRequest, res: Response): Promise<v
       message: "File uploaded successfully",
       data: {
         url: publicUrl,
-      }
+      },
     });
   } catch (error) {
     console.error("Upload error:", error);
-    res.status(500).json({status: 500, error: "Internal server error"});
+    res.status(500).json({ status: 500, error: "Internal server error" });
   }
-}
+};
 
 // eslint-disable-next-line require-jsdoc
 async function findQuestionById(questionId: string) {
@@ -642,7 +702,7 @@ async function findQuestionById(questionId: string) {
     }
     return {
       id: docRef.id,
-      ...docRef.data()
+      ...docRef.data(),
     };
   } catch (error) {
     console.error("Error fetching question:", error);
@@ -650,7 +710,10 @@ async function findQuestionById(questionId: string) {
   }
 }
 
-export const getApplicationQuestions = async (req: Request, res: Response): Promise<void> => {
+export const getApplicationQuestions = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const state: string | undefined = req.query.state?.toString();
     if (!state) {
@@ -661,8 +724,8 @@ export const getApplicationQuestions = async (req: Request, res: Response): Prom
           {
             field_id: `state`,
             message: `This field is required`,
-          }
-        ]
+          },
+        ],
       });
       return;
     }
@@ -674,27 +737,31 @@ export const getApplicationQuestions = async (req: Request, res: Response): Prom
         details: [
           {
             field_id: "state",
-            message: `This field is required. Must be one of ${VALID_STATES.join(", ")}`,
+            message: `This field is required. Must be one of ${VALID_STATES.join(
+              ", "
+            )}`,
           },
         ],
       });
       return;
     }
 
-    const questions = await findQuestionsByState(state as APPLICATION_STATES)
+    const questions = await findQuestionsByState(state as APPLICATION_STATES);
 
     res.status(200).json({
       status: 200,
-      data: questions
-    })
-
+      data: questions,
+    });
   } catch (error) {
     const e = error as Error;
-    res.status(500).json({error: e.message});
+    res.status(500).json({ error: e.message });
   }
-}
+};
 
-export const getApplicationQuestion = async (req: Request, res: Response): Promise<void> => {
+export const getApplicationQuestion = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
     const questionId: string | undefined = req.query.questionId?.toString();
     if (!questionId) {
@@ -705,13 +772,13 @@ export const getApplicationQuestion = async (req: Request, res: Response): Promi
           {
             field_id: `questionId`,
             message: `This field is required`,
-          }
-        ]
+          },
+        ],
       });
       return;
     }
 
-    const question = await findQuestionById(questionId)
+    const question = await findQuestionById(questionId);
 
     if (!question) {
       res.status(404).json({
@@ -721,26 +788,28 @@ export const getApplicationQuestion = async (req: Request, res: Response): Promi
           {
             field_id: `${questionId}`,
             message: `Cannot find such question`,
-          }
-        ]
+          },
+        ],
       });
       return;
     }
 
     res.status(200).json({
       status: 200,
-      data: question
-    })
-
+      data: question,
+    });
   } catch (error) {
     const e = error as Error;
-    res.status(500).json({error: e.message});
+    res.status(500).json({ error: e.message });
   }
-}
+};
 
-export const getApplicationStatus = async (req: Request, res: Response): Promise<void> => {
+export const getApplicationStatus = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const UID = await getUidFromSessionCookie(req)
+    const UID = await getUidFromSessionCookie(req);
     if (!UID) {
       res.status(400).json({
         status: 400,
@@ -754,7 +823,7 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
       res.status(404).json({
         status: 404,
         error: "Not found",
-        message: `Cannot find this user`
+        message: `Cannot find this user`,
       });
     }
 
@@ -765,26 +834,29 @@ export const getApplicationStatus = async (req: Request, res: Response): Promise
         status: 404,
         error: "Not found",
         message: `Cannot find application status for this user`,
-      })
-      return
+      });
+      return;
     }
 
     res.status(200).json({
       status: 200,
-      data: data.status
-    })
+      data: data.status,
+    });
   } catch (error) {
     const e = error as Error;
     res.status(500).json({
       status: 500,
-      error: e.message
+      error: e.message,
     });
   }
-}
+};
 
-export const setApplicationStatusToSubmitted = async (req: Request, res: Response): Promise<void> => {
+export const setApplicationStatusToSubmitted = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
   try {
-    const UID = await getUidFromSessionCookie(req)
+    const UID = await getUidFromSessionCookie(req);
 
     if (!UID) {
       res.status(400).json({
@@ -801,17 +873,17 @@ export const setApplicationStatusToSubmitted = async (req: Request, res: Respons
       updatedAt: new Date().toISOString(),
     };
 
-    await userRef.set(data, {merge: true});
+    await userRef.set(data, { merge: true });
 
     res.status(201).json({
       status: 201,
       success: true,
-    })
+    });
   } catch (err) {
     functions.logger.error("Error updating application status:", err);
     res.status(500).json({
       status: 500,
-      error: "Internal Server Error"
+      error: "Internal Server Error",
     });
   }
-}
+};

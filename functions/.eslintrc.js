@@ -37,6 +37,6 @@ module.exports = {
     "max-len": "off",
     "new-cap": "off",
     "linebreak-style": ["error", process.platform === "win32" ? "windows" : "unix"],
-    "no-explicit-any": "off",
+    "@typescript-eslint/no-explicit-any": "off"
   },
 };
