@@ -1,7 +1,11 @@
-import {firestore} from "firebase-admin";
-import {FieldValue} from "firebase-admin/firestore";
-import {faker} from "@faker-js/faker";
-import {APPLICATION_STATES, Question, QUESTION_TYPE} from "../types/application_types";
+import { firestore } from "firebase-admin";
+import { FieldValue } from "firebase-admin/firestore";
+import { faker } from "@faker-js/faker";
+import {
+  APPLICATION_STATES,
+  Question,
+  QUESTION_TYPE,
+} from "../types/application_types";
 
 /**
  * Logs a message with a specific prefix.
@@ -60,7 +64,7 @@ export class FakeDataPopulator {
         date_of_birth: faker.date.past(),
         education: "High School",
         school: faker.company.name(),
-        grade: faker.number.int({min: 9, max: 12}),
+        grade: faker.number.int({ min: 9, max: 12 }),
         year: faker.date.future().getFullYear(),
         gender_identity: "Man",
         status: "not applicable",
@@ -91,9 +95,9 @@ export class FakeDataPopulator {
       text: "Name",
       type: QUESTION_TYPE.STRING,
       validation: {
-        required: true
-      }
-    }
+        required: true,
+      },
+    };
     await this.createQuestionDocument(q);
 
     // number example
@@ -106,8 +110,8 @@ export class FakeDataPopulator {
         required: true,
         minValue: 16,
         maxValue: 45,
-      }
-    }
+      },
+    };
     await this.createQuestionDocument(q);
 
     // date example
@@ -118,8 +122,8 @@ export class FakeDataPopulator {
       type: QUESTION_TYPE.DATE,
       validation: {
         required: true,
-      }
-    }
+      },
+    };
     await this.createQuestionDocument(q);
 
     // dropdown example
@@ -131,11 +135,8 @@ export class FakeDataPopulator {
       validation: {
         required: true,
       },
-      options: [
-        "Undergraduate",
-        "High School"
-      ]
-    }
+      options: ["Undergraduate", "High School"],
+    };
     await this.createQuestionDocument(q);
 
     // file example
@@ -147,11 +148,10 @@ export class FakeDataPopulator {
       validation: {
         required: true,
         allowedTypes: "image/jpg,image/jpeg,image/png",
-        maxSize: 5
-      }
-    }
+        maxSize: 5,
+      },
+    };
     await this.createQuestionDocument(q);
-
 
     // string example
     q = {
@@ -160,9 +160,9 @@ export class FakeDataPopulator {
       text: "What's your motivation in joining GarudaHacks?",
       type: QUESTION_TYPE.TEXTAREA,
       validation: {
-        required: true
-      }
-    }
+        required: true,
+      },
+    };
     await this.createQuestionDocument(q);
 
     // string example
@@ -172,9 +172,9 @@ export class FakeDataPopulator {
       text: "Do you have any limitation that we should be concern about?",
       type: QUESTION_TYPE.TEXTAREA,
       validation: {
-        required: true
-      }
-    }
+        required: true,
+      },
+    };
     await this.createQuestionDocument(q);
   }
 

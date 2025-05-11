@@ -4,7 +4,8 @@ import {
   getApplicationQuestion,
   getApplicationQuestions,
   patchApplication,
-  uploadFile, setApplicationStatusToSubmitted
+  uploadFile,
+  setApplicationStatusToSubmitted,
 } from "../controllers/application_controller";
 
 const router = express.Router();
@@ -13,10 +14,10 @@ router.patch("/", patchApplication);
 
 router.post("/file-upload", uploadFile);
 
-router.get("/questions", getApplicationQuestions)
-router.get("/question", getApplicationQuestion)
+router.get("/questions", getApplicationQuestions);
+router.get("/question", getApplicationQuestion);
 
-router.post("/status", setApplicationStatusToSubmitted)
-router.get("/status", getApplicationStatus)
+router.post("/status", setApplicationStatusToSubmitted);
+router.get("/status", getApplicationStatus);
 
 export default router;
