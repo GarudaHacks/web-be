@@ -15,6 +15,8 @@ const corsOptions: CorsOptions = {
     "http://localhost:5173",
     "https://garudahacks.com",
     "https://www.garudahacks.com",
+    "https://portal.garudahacks.com",
+    "https://www.portal.garudahacks.com",
   ],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
