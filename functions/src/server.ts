@@ -22,15 +22,14 @@ const corsOptions: CorsOptions = {
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   preflightContinue: false,
-  optionsSuccessStatus: 204
+  optionsSuccessStatus: 204,
 };
 
 // Middleware
+app.options("*", cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
-
-app.options('*', cors(corsOptions));
 
 // Auth validation
 app.use((req: Request, res: Response, next: NextFunction) => {
