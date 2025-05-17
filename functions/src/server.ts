@@ -15,18 +15,27 @@ const corsOptions: CorsOptions = {
     "http://localhost:5173",
     "https://garudahacks.com",
     "https://www.garudahacks.com",
-    "https://portal-ochre-iota.vercel.app"
+    "https://portal-ochre-iota.vercel.app",
     "https://portal.garudahacks.com",
   ],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
 };
 
 // Middleware
-app.options("*", cors(corsOptions)); // preflight
 app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
+
+// Bypass auth and CSRF for OPTIONS requests
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === "OPTIONS") {
+    res.status(204).send(""); // Ensure preflight requests return 204
+    return;
+  }
+  next();
+});
 
 // Auth validation
 app.use(validateSessionCookie);
