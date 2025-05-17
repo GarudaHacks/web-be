@@ -1,7 +1,7 @@
 import * as functions from "firebase-functions";
-import {admin, auth} from "../config/firebase";
-import {NextFunction, Request, Response} from "express";
-import {extractSessionCookieFromCookie} from "../utils/jwt";
+import { admin, auth } from "../config/firebase";
+import { NextFunction, Request, Response } from "express";
+import { extractSessionCookieFromCookie } from "../utils/jwt";
 
 // Extend Express Request interface to include the user property.
 declare global {
@@ -16,8 +16,10 @@ declare global {
 const authExemptRoutes = [
   "/auth/register",
   "/auth/login",
-  "/auth/session-login"
-]
+  "/auth/session-login",
+  "/auth/request-reset",
+  "/auth/reset-password",
+];
 
 /**
  * Middleware that validates Firebase Session Cookie passed as __session cookie.
@@ -27,7 +29,7 @@ export const validateSessionCookie = async (
   res: Response,
   next: NextFunction
 ) => {
-  if (authExemptRoutes.some(route => req.path?.startsWith(route))) {
+  if (authExemptRoutes.some((route) => req.path?.startsWith(route))) {
     return next();
   }
 
@@ -43,20 +45,26 @@ export const validateSessionCookie = async (
     );
     res.status(401).json({
       status: 401,
-      error: "No session cookie found"
+      error: "No session cookie found",
     });
     return;
   }
   try {
-    const decodedSessionCookie = await auth.verifySessionCookie(sessionCookie, true);
-    functions.logger.log("Session cookie correctly decoded", decodedSessionCookie);
+    const decodedSessionCookie = await auth.verifySessionCookie(
+      sessionCookie,
+      true
+    );
+    functions.logger.log(
+      "Session cookie correctly decoded",
+      decodedSessionCookie
+    );
     req.user = decodedSessionCookie;
     return next();
   } catch (error) {
     functions.logger.error("Error while verifying session cookie:", error);
     res.status(401).json({
       status: 401,
-      error: "Error while verifying session cookie"
+      error: "Error while verifying session cookie",
     });
   }
 };

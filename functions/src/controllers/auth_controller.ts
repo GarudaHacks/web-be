@@ -9,6 +9,7 @@ import * as functions from "firebase-functions";
 import { FirebaseError } from "firebase-admin";
 import { generateCsrfToken } from "../middlewares/csrf_middleware";
 import { APPLICATION_STATUS } from "../types/application_types";
+import nodemailer from "nodemailer";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
 
@@ -394,3 +395,217 @@ export const sessionCheck = async (
     res.status(400).json({ status: 400, error: e });
   }
 };
+
+// Configure Nodemailer to use Mailtrap's SMTP
+const transporter = nodemailer.createTransport({
+  host: "live.smtp.mailtrap.io",
+  port: 587,
+  auth: {
+    user: process.env.MAILTRAP_USER,
+    pass: process.env.MAILTRAP_PASS,
+  },
+});
+
+interface ActionCodeSettings {
+  url: string;
+  handleCodeInApp: boolean;
+}
+
+interface MailOptions {
+  from: string | { name: string; address: string };
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}
+
+const getActionCodeSettings = (): ActionCodeSettings => ({
+  url: process.env.FRONTEND_URL
+    ? `${process.env.FRONTEND_URL}/reset-password`
+    : "https://portal.garudahacks.com/reset-password",
+  handleCodeInApp: true,
+});
+
+const createMailOptions = (email: string, link: string): MailOptions => ({
+  from: {
+    name: "Garuda Hacks",
+    address: "no-reply@garudahacks.com",
+  },
+  to: email,
+  subject: "Reset your Garuda Hacks password",
+  html: `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Password</title>
+        <meta name="color-scheme" content="dark">
+        <meta name="supported-color-schemes" content="dark">
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
+        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <div style="margin-bottom: 20px;">
+            <img 
+              src="https://garudahacks.com/images/logo/ghq.png" 
+              alt="Garuda Hacks Logo" 
+              style="max-width: 80px;" 
+              loading="eager"
+              decoding="async"
+              importance="high"
+            />
+          </div>
+          <h1 style="color: #fff; margin-bottom: 20px; font-size: 24px;">Reset Your Password</h1>
+          <p style="color: #e2e8f0; margin-bottom: 25px;">You requested a password reset. Click the button below to choose a new password:</p>
+          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Reset Password</a>
+          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
+            If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
+          </p>
+          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
+            This link will expire in 1 hour for security reasons.
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
+          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
+          <p style="margin-top: 10px;">
+            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
+            <a href="mailto:support@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
+          </p>
+        </div>
+      </body>
+    </html>
+  `,
+  text: `Reset Your Password
+
+You requested a password reset. Click the link below to choose a new password:
+
+${link}
+
+If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
+
+This link will expire in 1 hour for security reasons.
+
+© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
+});
+
+const sendPasswordResetEmail = async (
+  email: string,
+  link: string
+): Promise<void> => {
+  const mailOptions = createMailOptions(email, link);
+  await transporter.sendMail(mailOptions);
+  functions.logger.info("Password reset email sent successfully to:", email);
+};
+
+/**
+ * Request password reset by sending email
+ */
+export const requestPasswordReset = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { email } = req.body;
+
+  if (!email || !validator.isEmail(email)) {
+    res.status(400).json({
+      status: 400,
+      error: "Valid email is required",
+    });
+    return;
+  }
+
+  try {
+    // Check if user exists
+    await auth.getUserByEmail(email);
+
+    // Generate password reset link
+    const actionCodeSettings = getActionCodeSettings();
+    functions.logger.info("Generating password reset link for:", email);
+
+    const link = await auth.generatePasswordResetLink(
+      email,
+      actionCodeSettings
+    );
+    functions.logger.info("Password reset link generated successfully");
+
+    // Send password reset email
+    await sendPasswordResetEmail(email, link);
+
+    // Send success response
+    res.status(200).json({
+      status: 200,
+      message:
+        "If an account exists with this email, a password reset link has been sent",
+    });
+  } catch (error) {
+    const err = error as FirebaseError;
+    functions.logger.error("Error in password reset process:", err);
+
+    // Send generic response for security
+    res.status(200).json({
+      status: 200,
+      message:
+        "If an account exists with this email, a password reset link has been sent",
+    });
+  }
+};
+
+/**
+ * Reset password using verification code
+ */
+// export const resetPassword = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   const { oobCode, newPassword } = req.body;
+
+//   if (!oobCode || !newPassword) {
+//     res.status(400).json({
+//       status: 400,
+//       error: "Reset code and new password are required",
+//     });
+//     return;
+//   }
+
+//   if (!validator.isLength(newPassword, { min: 6 })) {
+//     res.status(400).json({
+//       status: 400,
+//       error: "Password must be at least 6 characters long",
+//     });
+//     return;
+//   }
+
+//   try {
+//     // Get the user from the reset code
+//     const user = await auth.getUserByEmail(oobCode);
+
+//     // Update the user's password
+//     await auth.updateUser(user.uid, {
+//       password: newPassword,
+//     });
+
+//     // Revoke all refresh tokens
+//     await auth.revokeRefreshTokens(user.uid);
+
+//     res.status(200).json({
+//       status: 200,
+//       message: "Password has been reset successfully",
+//     });
+//   } catch (error) {
+//     const err = error as FirebaseError;
+//     functions.logger.error("Error resetting password:", err);
+
+//     if (err.code === "auth/user-not-found") {
+//       res.status(400).json({
+//         status: 400,
+//         error: "Invalid or expired reset code",
+//       });
+//       return;
+//     }
+
+//     res.status(500).json({
+//       status: 500,
+//       error: "Failed to reset password",
+//     });
+//   }
+// };

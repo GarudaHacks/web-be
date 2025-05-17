@@ -26,7 +26,7 @@ module.exports = {
   plugins: ["@typescript-eslint", "import"],
   rules: {
     indent: ["error", 2],
-    quotes: ["error", "double", { allowTemplateLiterals: true }],
+    quotes: "off",
     "import/no-unresolved": 0,
     "no-restricted-globals": ["error", "name", "length"],
     "prefer-arrow-callback": "error",

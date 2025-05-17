@@ -6,8 +6,9 @@ const csrfExemptRoutes = [
   "/auth/login",
   "/auth/register",
   "/auth/session-login",
+  "/auth/request-reset",
+  "/auth/reset-password",
   "/auth/logout",
-  // "/auth/reset-password",
 ];
 
 export const csrfProtection: RequestHandler = (
@@ -27,15 +28,22 @@ export const csrfProtection: RequestHandler = (
   }
 
   const csrfCookie = req.cookies?.["CSRF-TOKEN"] as string | undefined;
-  const csrfHeader = req.header("x-csrf-token");
+  const csrfHeader = req.header("x-xsrf-token");
 
-  functions.logger.log("CSRF Cookie:", csrfCookie);
-  functions.logger.log("CSRF Header:", csrfHeader);
-
-  if (!csrfCookie || !csrfHeader || csrfCookie !== csrfHeader) {
+  if (!csrfCookie || !csrfHeader) {
     functions.logger.log(
-      "CSRF validation rejected as cookie and header does not match."
+      "CSRF validation rejected: Missing token in cookie or header"
     );
+    res
+      .status(403)
+      .json({ status: 403, error: "CSRF token validation failed" });
+    return;
+  }
+
+  if (
+    !crypto.timingSafeEqual(Buffer.from(csrfCookie), Buffer.from(csrfHeader))
+  ) {
+    functions.logger.log("CSRF validation rejected: Token mismatch");
     res
       .status(403)
       .json({ status: 403, error: "CSRF token validation failed" });
@@ -46,5 +54,15 @@ export const csrfProtection: RequestHandler = (
 };
 
 export const generateCsrfToken = (): string => {
-  return crypto.randomBytes(16).toString("hex");
+  return crypto.randomBytes(32).toString("hex");
+};
+
+export const setCsrfCookie = (res: Response, token: string): void => {
+  res.cookie("CSRF-TOKEN", token, {
+    httpOnly: true,
+    secure: true,
+    sameSite: "strict",
+    path: "/",
+    maxAge: 24 * 60 * 60 * 1000,
+  });
 };

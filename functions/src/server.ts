@@ -15,8 +15,8 @@ const corsOptions: CorsOptions = {
     "http://localhost:5173",
     "https://garudahacks.com",
     "https://www.garudahacks.com",
+    "https://portal-ochre-iota.vercel.app"
     "https://portal.garudahacks.com",
-    "https://www.portal.garudahacks.com",
   ],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
@@ -35,6 +35,32 @@ app.use(validateSessionCookie);
 app.use(csrfProtection);
 
 // Logging
+const sanitizeBody = (body: any): any => {
+  if (!body) return body;
+
+  const sensitiveFields = [
+    "password",
+    "token",
+    "secret",
+    "key",
+    "authorization",
+    "credit_card",
+    "ssn",
+    "social_security",
+  ];
+  const sanitized = { ...body };
+
+  Object.keys(sanitized).forEach((key) => {
+    if (sensitiveFields.some((field) => key.toLowerCase().includes(field))) {
+      sanitized[key] = "[REDACTED]";
+    } else if (typeof sanitized[key] === "object" && sanitized[key] !== null) {
+      sanitized[key] = sanitizeBody(sanitized[key]);
+    }
+  });
+
+  return sanitized;
+};
+
 app.use((req: Request, res: Response, next: NextFunction) => {
   const logData = {
     method: req.method,
@@ -48,7 +74,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 
   const contentType = req.headers["content-type"] || "";
   if (!contentType.includes("multipart/form-data")) {
-    logData.body = req.body;
+    logData.body = sanitizeBody(req.body);
   }
 
   const timestamp = new Date().toISOString();
