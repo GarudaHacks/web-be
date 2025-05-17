@@ -8,37 +8,45 @@ import { validateSessionCookie } from "./middlewares/auth_middleware";
 
 const app = express();
 
+const allowedOrigins = [
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "https://garudahacks.com",
+  "https://www.garudahacks.com",
+  "https://portal-ochre-iota.vercel.app",
+  "https://portal.garudahacks.com",
+];
 const corsOptions: CorsOptions = {
-  origin: [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "http://localhost:5173",
-    "https://garudahacks.com",
-    "https://www.garudahacks.com",
-    "https://portal-ochre-iota.vercel.app",
-    "https://portal.garudahacks.com",
-  ],
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      functions.logger.warn(`Blocked request from unauthorized origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  maxAge: 86400, // 24 hours
 };
 
 // Middleware
+app.options("*", cors(corsOptions));
 app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 
-// Bypass auth and CSRF for OPTIONS requests
+// Auth validation
 app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.method === "OPTIONS") {
-    res.status(204).send(""); // Ensure preflight requests return 204
-    return;
+    return next();
   }
-  next();
+  validateSessionCookie(req, res, next);
 });
-
-// Auth validation
-app.use(validateSessionCookie);
 
 // CSRF protection as we use session cookie for authentication
 app.use(csrfProtection);
