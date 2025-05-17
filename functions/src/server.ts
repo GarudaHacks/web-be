@@ -16,6 +16,7 @@ const corsOptions: CorsOptions = {
     "https://garudahacks.com",
     "https://www.garudahacks.com",
     "https://portal-ochre-iota.vercel.app"
+    "https://portal.garudahacks.com",
   ],
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],

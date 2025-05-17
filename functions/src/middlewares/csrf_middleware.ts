@@ -8,6 +8,7 @@ const csrfExemptRoutes = [
   "/auth/session-login",
   "/auth/request-reset",
   "/auth/reset-password",
+  "/auth/logout",
 ];
 
 export const csrfProtection: RequestHandler = (
