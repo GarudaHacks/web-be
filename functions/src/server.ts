@@ -21,6 +21,8 @@ const corsOptions: CorsOptions = {
   credentials: true,
   allowedHeaders: ["Content-Type", "Authorization", "X-XSRF-TOKEN"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
 
 // Middleware
@@ -28,17 +30,15 @@ app.use(cors(corsOptions));
 app.use(cookieParser());
 app.use(express.json());
 
-// Bypass auth and CSRF for OPTIONS requests
-app.use((req: Request, res: Response, next: NextFunction) => {
-  if (req.method === "OPTIONS") {
-    res.status(204).send(""); // Ensure preflight requests return 204
-    return;
-  }
-  next();
-});
+app.options('*', cors(corsOptions));
 
 // Auth validation
-app.use(validateSessionCookie);
+app.use((req: Request, res: Response, next: NextFunction) => {
+  if (req.method === "OPTIONS") {
+    return next();
+  }
+  validateSessionCookie(req, res, next);
+});
 
 // CSRF protection as we use session cookie for authentication
 app.use(csrfProtection);
