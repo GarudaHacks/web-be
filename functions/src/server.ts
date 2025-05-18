@@ -13,8 +13,8 @@ const allowedOrigins = [
   "http://localhost:3001",
   "http://localhost:5173",
   "https://garudahacks.com",
-  "https://portal-ochre-iota.vercel.app",
   "https://portal.garudahacks.com",
+  "https://preview.portal.garudahacks.com",
 ];
 
 const corsOptions: CorsOptions = {
