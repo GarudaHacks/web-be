@@ -462,8 +462,18 @@ function validateStringValue(fieldValue: string | any, question: Question) {
       message: `Must be less than ${validation.maxLength} character(s)`,
     });
   }
-  // other string validation if needed
-  // ...
+  
+  // validate pattern
+  if (validation.pattern) {
+    const regex = new RegExp(validation.pattern);
+    if (!regex.test(fieldValue)) {
+      errors.push({
+        field_id: `${question.id}`,
+        message: `Not a valid ${question.text}.`,
+      });
+    }
+  }
+  
   return errors;
 }
 

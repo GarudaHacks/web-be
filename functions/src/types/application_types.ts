@@ -6,16 +6,17 @@ export enum APPLICATION_STATUS {
   SUBMITTED = "submitted",
   WAITLISTED = "waitlisted",
   REJECTED = "rejected",
-  ACCEPTED = "accepted"
+  ACCEPTED = "accepted",
+  CONFIRMED_RSVP = "confirmed rsvp",
 }
 
 /**
  * State for part to show in the web UI of GH Portal.
  */
 export enum APPLICATION_STATES {
-  PROFILE = "PROFILE",
-  INQUIRY = "INQUIRY",
-  ADDITIONAL_QUESTION = "ADDITIONAL_QUESTION",
+  PROFILE = "profile",
+  INQUIRY = "inquiry",
+  ADDITIONAL_QUESTION = "additional",
 }
 
 export enum QUESTION_TYPE {
@@ -31,6 +32,7 @@ export interface StringValidation {
   required?: boolean;
   minLength?: number;
   maxLength?: number;
+  pattern?: string;
 }
 
 export interface NumberValidation {
@@ -64,14 +66,14 @@ export type ValidationTypeMap = {
 };
 
 export interface Question {
-  id?: string;
+  id: string;
   order: number;
-  state: APPLICATION_STATES;
   text: string;
   type: QUESTION_TYPE;
   validation: ValidationTypeMap[Question["type"]];
-
+  placeholder?: string;
   options?: string[]; // for dropdown only
+  state: APPLICATION_STATES;
 }
 
 export interface FileInfo {
