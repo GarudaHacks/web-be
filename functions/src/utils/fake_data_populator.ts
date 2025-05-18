@@ -97,6 +97,7 @@ export class FakeDataPopulator {
       type: QUESTION_TYPE.STRING,
       validation: {
         required: true,
+        pattern: "^[a-zA-Z\\s'-]+$",
       },
     };
     await this.createQuestionDocument(q);
@@ -112,6 +113,7 @@ export class FakeDataPopulator {
         required: true,
         minValue: 16,
         maxValue: 45,
+        pattern: "^[0-9]+$",
       },
     };
     await this.createQuestionDocument(q);
@@ -125,6 +127,7 @@ export class FakeDataPopulator {
       type: QUESTION_TYPE.DATE,
       validation: {
         required: true,
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$",
       },
     };
     await this.createQuestionDocument(q);
@@ -138,6 +141,7 @@ export class FakeDataPopulator {
       type: QUESTION_TYPE.DROPDOWN,
       validation: {
         required: true,
+        pattern: "^(Undergraduate|High School)$",
       },
       options: ["Undergraduate", "High School"],
     };
@@ -154,6 +158,7 @@ export class FakeDataPopulator {
         required: true,
         allowedTypes: "image/jpg,image/jpeg,image/png",
         maxSize: 5,
+        pattern: "\\.(jpg|jpeg|png)$",
       },
     };
     await this.createQuestionDocument(q);
@@ -167,6 +172,7 @@ export class FakeDataPopulator {
       type: QUESTION_TYPE.TEXTAREA,
       validation: {
         required: true,
+        pattern: "^[\\w\\s\\.,!?-]+$",
       },
     };
     await this.createQuestionDocument(q);
@@ -180,6 +186,7 @@ export class FakeDataPopulator {
       type: QUESTION_TYPE.TEXTAREA,
       validation: {
         required: true,
+        pattern: "^[\\w\\s\\.,!?-]+$",
       },
     };
     await this.createQuestionDocument(q);

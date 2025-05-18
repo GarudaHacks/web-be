@@ -463,17 +463,6 @@ function validateStringValue(fieldValue: string | any, question: Question) {
     });
   }
   
-  // validate pattern
-  if (validation.pattern) {
-    const regex = new RegExp(validation.pattern);
-    if (!regex.test(fieldValue)) {
-      errors.push({
-        field_id: `${question.id}`,
-        message: `Not a valid ${question.text}.`,
-      });
-    }
-  }
-  
   return errors;
 }
 

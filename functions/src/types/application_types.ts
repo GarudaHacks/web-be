@@ -1,4 +1,4 @@
-import {Request} from "express";
+import { Request } from "express";
 
 export enum APPLICATION_STATUS {
   NOT_APPLICABLE = "not applicable",
@@ -14,9 +14,9 @@ export enum APPLICATION_STATUS {
  * State for part to show in the web UI of GH Portal.
  */
 export enum APPLICATION_STATES {
-  PROFILE = "profile",
-  INQUIRY = "inquiry",
-  ADDITIONAL_QUESTION = "additional",
+  PROFILE = "PROFILE",
+  INQUIRY = "INQUIRY",
+  ADDITIONAL_QUESTION = "ADDITIONAL_QUESTION",
 }
 
 export enum QUESTION_TYPE {
@@ -25,7 +25,7 @@ export enum QUESTION_TYPE {
   TEXTAREA = "textarea",
   DATE = "datetime",
   DROPDOWN = "dropdown",
-  FILE = "file"
+  FILE = "file",
 }
 
 export interface StringValidation {
