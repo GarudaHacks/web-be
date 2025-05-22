@@ -12,7 +12,7 @@ const router = express.Router();
 
 router.post("/login", (req: Request, res: Response) => login(req, res));
 router.post("/register", (req: Request, res: Response) => register(req, res));
-router.post("/request-reset", requestPasswordReset);
+router.post("/reset-password", requestPasswordReset);
 router.post("/session-login", (req: Request, res: Response) =>
   sessionLogin(req, res)
 );
