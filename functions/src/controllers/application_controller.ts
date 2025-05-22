@@ -300,14 +300,6 @@ async function validateFileUploaded(
     return errors;
   }
 
-  // skip validation if not required and value is empty
-  if (
-    validation.required !== true &&
-    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
-  ) {
-    return errors;
-  }
-
   try {
     // check in firebase storage
     const fileName = `${uid}_${question.id}.${fieldValue.split(".").pop()}`;
