@@ -290,6 +290,14 @@ async function validateFileUploaded(
     return errors;
   }
 
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
+    return errors;
+  }
+
   try {
     // check in firebase storage
     const fileName = `${uid}_${question.id}.${fieldValue.split(".").pop()}`;
@@ -324,7 +332,7 @@ async function validateFileUploaded(
 
 // eslint-disable-next-line require-jsdoc
 function validateDropdownValue(fieldValue: string | any, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as DropdownValidation;
 
@@ -337,6 +345,14 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
       field_id: `${question.id}`,
       message: `This field is required`,
     });
+    return errors;
+  }
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     return errors;
   }
 
@@ -353,7 +369,7 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
 
 // eslint-disable-next-line require-jsdoc
 function validateDatetimeValue(fieldValue: string, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as DatetimeValidation;
 
@@ -369,6 +385,14 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
     return errors;
   }
 
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
+    return errors;
+  }
+
   // check valid date
   if (!validator.isISO8601(fieldValue)) {
     errors.push({
@@ -381,7 +405,7 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
 
 // eslint-disable-next-line require-jsdoc
 function validateNumberValue(fieldValue: number | any, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as NumberValidation;
 
@@ -394,6 +418,14 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
       field_id: `${question.id}`,
       message: `This field is required`,
     });
+    return errors;
+  }
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     return errors;
   }
 
@@ -410,14 +442,16 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   if (validation.minValue && fieldValue < validation.minValue) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be more than equals ${validation.minValue}`,
-    });
-  } else if (validation.maxValue && fieldValue > validation.maxValue) {
-    errors.push({
-      field_id: `${question.id}`,
-      message: `Must be less than equals ${validation.maxValue}`,
+      message: `Must be more than or equal to ${validation.minValue}`,
     });
   }
+  if (validation.maxValue && fieldValue > validation.maxValue) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Must be less than or equal to ${validation.maxValue}`,
+    });
+  }
+
   return errors;
 }
 
@@ -425,7 +459,7 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
  * Validate string value. Also works for textarea.
  */
 function validateStringValue(fieldValue: string | any, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as StringValidation;
 
@@ -438,6 +472,14 @@ function validateStringValue(fieldValue: string | any, question: Question) {
       field_id: `${question.id}`,
       message: `This field is required`,
     });
+    return errors;
+  }
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
     return errors;
   }
 
