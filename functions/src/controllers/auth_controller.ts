@@ -445,17 +445,7 @@ const createMailOptions = (email: string, link: string): MailOptions => ({
       </head>
       <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
         <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <div style="margin-bottom: 20px;">
-            <img 
-              src="https://garudahacks.com/images/logo/ghq.png" 
-              alt="Garuda Hacks Logo" 
-              style="max-width: 80px;" 
-              loading="eager"
-              decoding="async"
-              importance="high"
-            />
-          </div>
-          <h1 style="color: #fff; margin-bottom: 20px; font-size: 24px;">Reset Your Password</h1>
+          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Reset Your Password</h1>
           <p style="color: #e2e8f0; margin-bottom: 25px;">You requested a password reset. Click the button below to choose a new password:</p>
           <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Reset Password</a>
           <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
@@ -469,7 +459,7 @@ const createMailOptions = (email: string, link: string): MailOptions => ({
           <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
           <p style="margin-top: 10px;">
             <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-            <a href="mailto:support@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
+            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
           </p>
         </div>
       </body>

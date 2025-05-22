@@ -90,18 +90,21 @@ export class FakeDataPopulator {
 
     // string example
     q = {
+      id: faker.string.uuid(),
       order: 1,
       state: APPLICATION_STATES.PROFILE,
       text: "Name",
       type: QUESTION_TYPE.STRING,
       validation: {
         required: true,
+        pattern: "^[a-zA-Z\\s'-]+$",
       },
     };
     await this.createQuestionDocument(q);
 
     // number example
     q = {
+      id: faker.string.uuid(),
       order: 2,
       state: APPLICATION_STATES.PROFILE,
       text: "Age",
@@ -110,30 +113,35 @@ export class FakeDataPopulator {
         required: true,
         minValue: 16,
         maxValue: 45,
+        pattern: "^[0-9]+$",
       },
     };
     await this.createQuestionDocument(q);
 
     // date example
     q = {
+      id: faker.string.uuid(),
       order: 3,
       state: APPLICATION_STATES.PROFILE,
       text: "Birthday",
       type: QUESTION_TYPE.DATE,
       validation: {
         required: true,
+        pattern: "^\\d{4}-\\d{2}-\\d{2}$",
       },
     };
     await this.createQuestionDocument(q);
 
     // dropdown example
     q = {
+      id: faker.string.uuid(),
       order: 4,
       state: APPLICATION_STATES.PROFILE,
       text: "Education Level",
       type: QUESTION_TYPE.DROPDOWN,
       validation: {
         required: true,
+        pattern: "^(Undergraduate|High School)$",
       },
       options: ["Undergraduate", "High School"],
     };
@@ -141,6 +149,7 @@ export class FakeDataPopulator {
 
     // file example
     q = {
+      id: faker.string.uuid(),
       order: 4,
       state: APPLICATION_STATES.PROFILE,
       text: "Profile Photo",
@@ -149,30 +158,35 @@ export class FakeDataPopulator {
         required: true,
         allowedTypes: "image/jpg,image/jpeg,image/png",
         maxSize: 5,
+        pattern: "\\.(jpg|jpeg|png)$",
       },
     };
     await this.createQuestionDocument(q);
 
     // string example
     q = {
+      id: faker.string.uuid(),
       order: 1,
       state: APPLICATION_STATES.INQUIRY,
       text: "What's your motivation in joining GarudaHacks?",
       type: QUESTION_TYPE.TEXTAREA,
       validation: {
         required: true,
+        pattern: "^[\\w\\s\\.,!?-]+$",
       },
     };
     await this.createQuestionDocument(q);
 
     // string example
     q = {
+      id: faker.string.uuid(),
       order: 1,
       state: APPLICATION_STATES.INQUIRY,
       text: "Do you have any limitation that we should be concern about?",
       type: QUESTION_TYPE.TEXTAREA,
       validation: {
         required: true,
+        pattern: "^[\\w\\s\\.,!?-]+$",
       },
     };
     await this.createQuestionDocument(q);

@@ -1,4 +1,4 @@
-import {Request} from "express";
+import { Request } from "express";
 
 export enum APPLICATION_STATUS {
   NOT_APPLICABLE = "not applicable",
@@ -6,7 +6,8 @@ export enum APPLICATION_STATUS {
   SUBMITTED = "submitted",
   WAITLISTED = "waitlisted",
   REJECTED = "rejected",
-  ACCEPTED = "accepted"
+  ACCEPTED = "accepted",
+  CONFIRMED_RSVP = "confirmed rsvp",
 }
 
 /**
@@ -24,13 +25,14 @@ export enum QUESTION_TYPE {
   TEXTAREA = "textarea",
   DATE = "datetime",
   DROPDOWN = "dropdown",
-  FILE = "file"
+  FILE = "file",
 }
 
 export interface StringValidation {
   required?: boolean;
   minLength?: number;
   maxLength?: number;
+  pattern?: string;
 }
 
 export interface NumberValidation {
@@ -64,14 +66,14 @@ export type ValidationTypeMap = {
 };
 
 export interface Question {
-  id?: string;
+  id: string;
   order: number;
-  state: APPLICATION_STATES;
   text: string;
   type: QUESTION_TYPE;
   validation: ValidationTypeMap[Question["type"]];
-
+  placeholder?: string;
   options?: string[]; // for dropdown only
+  state: APPLICATION_STATES;
 }
 
 export interface FileInfo {

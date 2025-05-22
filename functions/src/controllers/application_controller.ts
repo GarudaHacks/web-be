@@ -462,8 +462,7 @@ function validateStringValue(fieldValue: string | any, question: Question) {
       message: `Must be less than ${validation.maxLength} character(s)`,
     });
   }
-  // other string validation if needed
-  // ...
+  
   return errors;
 }
 
