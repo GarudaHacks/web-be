@@ -162,7 +162,8 @@ async function constructDataToSave(
   for (const question of questions) {
     if (question.id === undefined || question.id === null) continue;
     const fieldValue = req.body[question.id];
-    if (question.type === QUESTION_TYPE.FILE) {
+    // rewrite file path
+    if (question.type === QUESTION_TYPE.FILE && !(fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
       dataToSave[
         question.id
       ] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${
@@ -274,9 +275,18 @@ async function validateFileUploaded(
   question: Question,
   uid: string
 ) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as FileValidation;
+
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
+    return errors;
+  }
 
   // required
   if (
@@ -324,9 +334,17 @@ async function validateFileUploaded(
 
 // eslint-disable-next-line require-jsdoc
 function validateDropdownValue(fieldValue: string | any, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as DropdownValidation;
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
+    return errors;
+  }
 
   // required
   if (
@@ -353,9 +371,17 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
 
 // eslint-disable-next-line require-jsdoc
 function validateDatetimeValue(fieldValue: string, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as DatetimeValidation;
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
+    return errors;
+  }
 
   // required
   if (
@@ -381,9 +407,17 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
 
 // eslint-disable-next-line require-jsdoc
 function validateNumberValue(fieldValue: number | any, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as NumberValidation;
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
+    return errors;
+  }
 
   // required
   if (
@@ -410,14 +444,16 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   if (validation.minValue && fieldValue < validation.minValue) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be more than equals ${validation.minValue}`,
-    });
-  } else if (validation.maxValue && fieldValue > validation.maxValue) {
-    errors.push({
-      field_id: `${question.id}`,
-      message: `Must be less than equals ${validation.maxValue}`,
+      message: `Must be more than or equal to ${validation.minValue}`,
     });
   }
+  if (validation.maxValue && fieldValue > validation.maxValue) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Must be less than or equal to ${validation.maxValue}`,
+    });
+  }
+
   return errors;
 }
 
@@ -425,9 +461,17 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
  * Validate string value. Also works for textarea.
  */
 function validateStringValue(fieldValue: string | any, question: Question) {
-  const errors = [];
+  const errors: { field_id: string; message: string; }[] = [];
 
   const validation = question.validation as StringValidation;
+
+  // skip validation if not required and value is empty
+  if (
+    validation.required !== true &&
+    (fieldValue === undefined || fieldValue === "" || fieldValue === null)
+  ) {
+    return errors;
+  }
 
   // required
   if (
