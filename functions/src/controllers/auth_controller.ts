@@ -446,6 +446,7 @@ export const sessionLogin = async (
   res: Response
 ): Promise<void> => {
   const idToken = req.body.id_token;
+
   if (!idToken) {
     functions.logger.warn("Required id_token in the body");
     res.status(400).json({
@@ -455,41 +456,86 @@ export const sessionLogin = async (
     return;
   }
 
+  let user;
+  let decodedIdToken;
+
+  // validate user through token
+  try {
+    decodedIdToken = await auth.verifyIdToken(idToken);
+  } catch (error) {
+    const err = error as FirebaseError;
+    if (err.code === "auth/user-not-found") {
+      functions.logger.error("User not found", error);
+      res.status(404).json({ status: 404, error: "User not found" });
+      return;
+    } else if (err.code === "auth/invalid-id-token") {
+      functions.logger.error("Invalid credentials");
+      res.status(401).json({ status: 401, error: "ID token is invalid" });
+      return;
+    } else if (err.code === "auth/id-token-expired") {
+      functions.logger.error("The provided Firebase ID token is expired");
+      res.status(401).json({
+        status: 401,
+        error: "The provided Firebase ID token is expired",
+      });
+      return;
+    }
+    functions.logger.error("Error when trying to session login user:", error);
+    res.status(500).json({ status: 500, error: "Something went wrong" });
+    return;
+  }
+
+  if (decodedIdToken.email === undefined) {
+    functions.logger.error("Email cannot be found in id token.");
+    res.status(400).json({ status: 400, error: "Invalid credentials" });
+    return;
+  }
+
+  // handle when user does not exist
+  try {
+    user = await auth.getUserByEmail(decodedIdToken.email);
+  } catch (error) {
+    const err = error as FirebaseError;
+    if (err.code === "auth/user-not-found") {
+      functions.logger.error("User not found", error);
+      res.status(404).json({ status: 404, error: "User not found" });
+      return;
+    }
+    functions.logger.error("Error when checking if user exists:", error);
+    res.status(500).json({ status: 500, error: "Something went wrong" });
+    return;
+  }
+
+  // handle when user is new or existing
+  try {
+    const userDocumentRef = await db.collection("users").doc(user.uid).get();
+    // when user is a new user, then populate db
+    if (!userDocumentRef.exists) {
+      const userData: User = formatUser({
+        email: user.email ?? "",
+        firstName: user.displayName ?? "",
+        status: APPLICATION_STATUS.NOT_APPLICABLE,
+      });
+      await db
+        .collection("users")
+        .doc(user.uid)
+        .set({
+          ...userData,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+    } else {
+      user = await auth.getUserByEmail(decodedIdToken.email);
+    }
+  } catch (error) {
+    functions.logger.error("Error when trying to check if user existed for session login", error);
+    return
+  }
+
+  // finally, set cookie
   try {
     const cookies = await auth.createSessionCookie(idToken, {
       expiresIn: SESSION_EXPIRY_SECONDS,
     }); // lasts a week
-
-    const decodedIdToken = await auth.verifyIdToken(idToken);
-
-    let user;
-    if (decodedIdToken.email != null) {
-      user = await auth.getUserByEmail(decodedIdToken.email);
-
-      // update user record for first time
-      const docRef = await db.collection("users").doc(user.uid).get();
-      if (!docRef.exists) {
-        const userData: User = formatUser({
-          email: user.email ?? "",
-          firstName: user.displayName ?? "",
-          status: APPLICATION_STATUS.NOT_APPLICABLE,
-        });
-        await db
-          .collection("users")
-          .doc(user.uid)
-          .set({
-            ...userData,
-            createdAt: FieldValue.serverTimestamp(),
-          });
-      }
-    } else {
-      functions.logger.error(
-        "Could not find existing user with email",
-        decodedIdToken.email
-      );
-      res.status(400).json({ status: 400, error: "Invalid credentials" });
-      return;
-    }
 
     res.cookie("__session", cookies, {
       httpOnly: true,
@@ -521,25 +567,8 @@ export const sessionLogin = async (
       },
     });
   } catch (e) {
-    const err = e as FirebaseError;
-    if (err.code === "auth/user-not-found") {
-      functions.logger.error("User not found", e);
-      res.status(404).json({ status: 404, error: "User not found" });
-      return;
-    } else if (err.code === "auth/invalid-id-token") {
-      functions.logger.error("Invalid credentials");
-      res.status(401).json({ status: 401, error: "ID token is invalid" });
-      return;
-    } else if (err.code === "auth/id-token-expired") {
-      functions.logger.error("The provided Firebase ID token is expired");
-      res.status(401).json({
-        status: 401,
-        error: "The provided Firebase ID token is expired",
-      });
-      return;
-    }
     functions.logger.error("Error when trying to session login", e);
-    res.status(500).json({ status: 500, error: e });
+    res.status(500).json({ status: 500, error: "Something went wrong" });
   }
 };
 
