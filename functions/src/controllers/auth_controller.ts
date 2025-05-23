@@ -266,28 +266,46 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   const { name, email, password } = req.body;
 
   if (!validateEmailAndPassword(email, password, res)) return;
+  if (!name) {
+    res.status(400).json({
+      status: 400,
+      error: "Name is required",
+    });
+    return;
+  }
 
+  let user;
   try {
-    if (!name) {
-      res.status(400).json({
-        status: 400,
-        error: "Name is required",
-      });
-      return;
-    }
-
-    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
-
-    const user = await auth.createUser({
+    user = await auth.createUser({
       displayName: name,
       email,
       password,
     });
-
     // set custom claims to user
     await auth.setCustomUserClaims(user.uid, {
       role: "User",
     });
+  } catch (error) {
+    const err = error as FirebaseError;
+    if (err.code.match("auth/email-already-exists")) {
+      res.status(409).json({
+        status: 409,
+        error: "Email already exists",
+      });
+      return
+    } else {
+      functions.logger.error("Error when trying to register an user:", err);
+      res.status(500).json({
+        status: 500,
+        error: "Something went wrong"
+      })
+      return
+    }
+  }
+
+  try {
+
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     // Generate email verification link
     const verificationLink = await auth.generateEmailVerificationLink(email);
