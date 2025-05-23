@@ -17,7 +17,6 @@ const authExemptRoutes = [
   "/auth/register",
   "/auth/login",
   "/auth/session-login",
-  "/auth/verify-account",
   "/auth/reset-password",
 ];
 

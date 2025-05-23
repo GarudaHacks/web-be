@@ -431,15 +431,12 @@ export const sessionLogin = async (
     const decodedIdToken = await auth.verifyIdToken(idToken);
 
     let user;
-    let userDoc;
     if (decodedIdToken.email != null) {
       user = await auth.getUserByEmail(decodedIdToken.email);
 
-      // Get user document from Firestore
-      userDoc = await db.collection("users").doc(user.uid).get();
-
-      // Check if user exists in Firestore
-      if (!userDoc.exists) {
+      // update user record for first time
+      const docRef = await db.collection("questions").doc(user.uid).get();
+      if (!docRef.exists) {
         const userData: User = formatUser({
           email: user.email ?? "",
           firstName: user.displayName ?? "",
@@ -452,16 +449,6 @@ export const sessionLogin = async (
             ...userData,
             createdAt: FieldValue.serverTimestamp(),
           });
-      } else {
-        // Check verification status
-        if (!decodedIdToken.email_verified) {
-          res.status(403).json({
-            status: 403,
-            error:
-              "Account not verified. Please check your email for verification link.",
-          });
-          return;
-        }
       }
     } else {
       functions.logger.error(
@@ -543,7 +530,11 @@ export const sessionCheck = async (
       res
         .status(400)
         .json({ status: 400, error: "Could not find session cookie" });
+      return;
     }
+
+    // Get user data to check email verification status
+    const user = await auth.getUser(decodedSessionCookie.sub);
 
     res.status(200).json({
       status: 200,
@@ -552,6 +543,7 @@ export const sessionCheck = async (
         user: {
           email: decodedSessionCookie.email,
           displayName: decodedSessionCookie.name,
+          emailVerified: user.emailVerified,
         },
       },
     });
@@ -612,30 +604,41 @@ export const requestPasswordReset = async (
 };
 
 /**
- * Verify user account using verification code
+ * Send verification email to user
  */
 export const verifyAccount = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  const { email } = req.body;
-
-  if (!email) {
-    res.status(400).json({
-      status: 400,
-      error: "Email is required",
-    });
-    return;
-  }
-
   try {
+    const decodedSessionCookie = await auth.verifySessionCookie(
+      req.cookies.__session
+    );
+
+    if (!decodedSessionCookie) {
+      functions.logger.error("Could not find session cookie");
+      res
+        .status(400)
+        .json({ status: 400, error: "Could not find session cookie" });
+      return;
+    }
+
+    const email = decodedSessionCookie.email;
+    if (!email) {
+      res.status(400).json({
+        status: 400,
+        error: "Email not found in session",
+      });
+      return;
+    }
+
     const link = await auth.generateEmailVerificationLink(email);
 
     await sendVerificationEmail(email, link);
 
     res.status(200).json({
       status: 200,
-      message: "Account verified successfully",
+      message: "Email verification link sent",
     });
   } catch (error) {
     const err = error as FirebaseError;
@@ -643,7 +646,7 @@ export const verifyAccount = async (
 
     res.status(400).json({
       status: 400,
-      error: "Invalid or expired verification code",
+      error: "Something went wrong",
     });
   }
 };
