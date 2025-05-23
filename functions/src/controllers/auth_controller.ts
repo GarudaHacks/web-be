@@ -303,6 +303,34 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     }
   }
 
+  // if user already in db (e.g. signed up using google previously) then we would not want to create a new document
+  try {
+    const existingUserRef = await db.collection("users").doc(user.uid).get();
+    if (!existingUserRef.exists) {
+      const userData: User = formatUser({
+        email: user.email ?? "",
+        firstName: user.displayName ?? "",
+        status: APPLICATION_STATUS.NOT_APPLICABLE,
+      });
+
+      await db
+        .collection("users")
+        .doc(user.uid)
+        .set({
+          ...userData,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+    }
+  } catch (error) {
+    functions.logger.error("Error when checking existing user for registration:", error);
+    res.status(500).json({
+      status: 500,
+      error: "Something went wrong",
+    });
+    return;
+  }
+
+
   try {
 
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
@@ -322,20 +350,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const token = (
       await axios.post(url, { token: customToken, returnSecureToken: true })
     ).data;
-
-    const userData: User = formatUser({
-      email: user.email ?? "",
-      firstName: user.displayName ?? "",
-      status: APPLICATION_STATUS.NOT_APPLICABLE,
-    });
-
-    await db
-      .collection("users")
-      .doc(user.uid)
-      .set({
-        ...userData,
-        createdAt: FieldValue.serverTimestamp(),
-      });
 
     try {
       const cookies = await auth.createSessionCookie(token.idToken, {
