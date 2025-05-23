@@ -37,6 +37,152 @@ const validateEmailAndPassword = (
   return true;
 };
 
+// Configure Nodemailer to use Mailtrap's SMTP
+const transporter = nodemailer.createTransport({
+  host: "live.smtp.mailtrap.io",
+  port: 587,
+  auth: {
+    user: process.env.MAILTRAP_USER,
+    pass: process.env.MAILTRAP_PASS,
+  },
+});
+
+interface MailOptions {
+  from: string | { name: string; address: string };
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}
+
+const createPasswordResetMailOptions = (
+  email: string,
+  link: string
+): MailOptions => ({
+  from: {
+    name: "Garuda Hacks",
+    address: "no-reply@garudahacks.com",
+  },
+  to: email,
+  subject: "Reset your Garuda Hacks password",
+  html: `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Reset Your Password</title>
+        <meta name="color-scheme" content="dark">
+        <meta name="supported-color-schemes" content="dark">
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
+        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Reset Your Password</h1>
+          <p style="color: #e2e8f0; margin-bottom: 25px;">You requested a password reset. Click the button below to choose a new password:</p>
+          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Reset Password</a>
+          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
+            If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
+          </p>
+          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
+            This link will expire in 1 hour for security reasons.
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
+          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
+          <p style="margin-top: 10px;">
+            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
+            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
+          </p>
+        </div>
+      </body>
+    </html>
+  `,
+  text: `Reset Your Password
+
+You requested a password reset. Click the link below to choose a new password:
+
+${link}
+
+If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
+
+This link will expire in 1 hour for security reasons.
+
+© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
+});
+
+const sendPasswordResetEmail = async (
+  email: string,
+  link: string
+): Promise<void> => {
+  const mailOptions = createPasswordResetMailOptions(email, link);
+  await transporter.sendMail(mailOptions);
+  functions.logger.info("Password reset email sent successfully to:", email);
+};
+
+const createVerificationMailOptions = (
+  email: string,
+  link: string
+): MailOptions => ({
+  from: {
+    name: "Garuda Hacks",
+    address: "no-reply@garudahacks.com",
+  },
+  to: email,
+  subject: "Verify your Garuda Hacks account",
+  html: `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Account</title>
+        <meta name="color-scheme" content="dark">
+        <meta name="supported-color-schemes" content="dark">
+      </head>
+      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
+        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Welcome to Garuda Hacks!</h1>
+          <p style="color: #e2e8f0; margin-bottom: 25px;">Thank you for registering. Please verify your email address by clicking the button below:</p>
+          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Verify Email</a>
+          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
+            If you didn't create an account with us, you can safely ignore this email.
+          </p>
+          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
+            This verification link will expire in 24 hours.
+          </p>
+        </div>
+        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
+          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
+          <p style="margin-top: 10px;">
+            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
+            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
+          </p>
+        </div>
+      </body>
+    </html>
+  `,
+  text: `Welcome to Garuda Hacks!
+
+Thank you for registering. Please verify your email address by clicking the link below:
+
+${link}
+
+If you didn't create an account with us, you can safely ignore this email.
+
+This verification link will expire in 24 hours.
+
+© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
+});
+
+const sendVerificationEmail = async (
+  email: string,
+  link: string
+): Promise<void> => {
+  const mailOptions = createVerificationMailOptions(email, link);
+  await transporter.sendMail(mailOptions);
+  functions.logger.info("Verification email sent successfully to:", email);
+};
+
 /**
  * Logs in user
  */
@@ -143,6 +289,12 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       role: "User",
     });
 
+    // Generate email verification link
+    const verificationLink = await auth.generateEmailVerificationLink(email);
+
+    // Send verification email
+    await sendVerificationEmail(email, verificationLink);
+
     const customToken = await auth.createCustomToken(user.uid);
 
     const url = isEmulator
@@ -204,7 +356,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     res.status(201).json(
       convertResponseToSnakeCase({
         status: 201,
-        message: "Registration successful",
+        message:
+          "Registration successful. Please check your email for verification link.",
         user: {
           email: user.email,
           displayName: user.displayName,
@@ -377,7 +530,11 @@ export const sessionCheck = async (
       res
         .status(400)
         .json({ status: 400, error: "Could not find session cookie" });
+      return;
     }
+
+    // Get user data to check email verification status
+    const user = await auth.getUser(decodedSessionCookie.sub);
 
     res.status(200).json({
       status: 200,
@@ -386,6 +543,7 @@ export const sessionCheck = async (
         user: {
           email: decodedSessionCookie.email,
           displayName: decodedSessionCookie.name,
+          emailVerified: user.emailVerified,
         },
       },
     });
@@ -394,97 +552,6 @@ export const sessionCheck = async (
     functions.logger.error("Error when trying to check session", e);
     res.status(400).json({ status: 400, error: e });
   }
-};
-
-// Configure Nodemailer to use Mailtrap's SMTP
-const transporter = nodemailer.createTransport({
-  host: "live.smtp.mailtrap.io",
-  port: 587,
-  auth: {
-    user: process.env.MAILTRAP_USER,
-    pass: process.env.MAILTRAP_PASS,
-  },
-});
-
-interface ActionCodeSettings {
-  url: string;
-  handleCodeInApp: boolean;
-}
-
-interface MailOptions {
-  from: string | { name: string; address: string };
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}
-
-const getActionCodeSettings = (): ActionCodeSettings => ({
-  url: process.env.FRONTEND_URL
-    ? `${process.env.FRONTEND_URL}/reset-password`
-    : "https://portal.garudahacks.com/reset-password",
-  handleCodeInApp: true,
-});
-
-const createMailOptions = (email: string, link: string): MailOptions => ({
-  from: {
-    name: "Garuda Hacks",
-    address: "no-reply@garudahacks.com",
-  },
-  to: email,
-  subject: "Reset your Garuda Hacks password",
-  html: `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Reset Your Password</title>
-        <meta name="color-scheme" content="dark">
-        <meta name="supported-color-schemes" content="dark">
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Reset Your Password</h1>
-          <p style="color: #e2e8f0; margin-bottom: 25px;">You requested a password reset. Click the button below to choose a new password:</p>
-          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Reset Password</a>
-          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
-            If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
-          </p>
-          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
-            This link will expire in 1 hour for security reasons.
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-          <p style="margin-top: 10px;">
-            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-          </p>
-        </div>
-      </body>
-    </html>
-  `,
-  text: `Reset Your Password
-
-You requested a password reset. Click the link below to choose a new password:
-
-${link}
-
-If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
-
-This link will expire in 1 hour for security reasons.
-
-© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
-});
-
-const sendPasswordResetEmail = async (
-  email: string,
-  link: string
-): Promise<void> => {
-  const mailOptions = createMailOptions(email, link);
-  await transporter.sendMail(mailOptions);
-  functions.logger.info("Password reset email sent successfully to:", email);
 };
 
 /**
@@ -509,13 +576,9 @@ export const requestPasswordReset = async (
     await auth.getUserByEmail(email);
 
     // Generate password reset link
-    const actionCodeSettings = getActionCodeSettings();
     functions.logger.info("Generating password reset link for:", email);
 
-    const link = await auth.generatePasswordResetLink(
-      email,
-      actionCodeSettings
-    );
+    const link = await auth.generatePasswordResetLink(email);
     functions.logger.info("Password reset link generated successfully");
 
     // Send password reset email
@@ -541,61 +604,49 @@ export const requestPasswordReset = async (
 };
 
 /**
- * Reset password using verification code
+ * Send verification email to user
  */
-// export const resetPassword = async (
-//   req: Request,
-//   res: Response
-// ): Promise<void> => {
-//   const { oobCode, newPassword } = req.body;
+export const verifyAccount = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const decodedSessionCookie = await auth.verifySessionCookie(
+      req.cookies.__session
+    );
 
-//   if (!oobCode || !newPassword) {
-//     res.status(400).json({
-//       status: 400,
-//       error: "Reset code and new password are required",
-//     });
-//     return;
-//   }
+    if (!decodedSessionCookie) {
+      functions.logger.error("Could not find session cookie");
+      res
+        .status(400)
+        .json({ status: 400, error: "Could not find session cookie" });
+      return;
+    }
 
-//   if (!validator.isLength(newPassword, { min: 6 })) {
-//     res.status(400).json({
-//       status: 400,
-//       error: "Password must be at least 6 characters long",
-//     });
-//     return;
-//   }
+    const email = decodedSessionCookie.email;
+    if (!email) {
+      res.status(400).json({
+        status: 400,
+        error: "Email not found in session",
+      });
+      return;
+    }
 
-//   try {
-//     // Get the user from the reset code
-//     const user = await auth.getUserByEmail(oobCode);
+    const link = await auth.generateEmailVerificationLink(email);
 
-//     // Update the user's password
-//     await auth.updateUser(user.uid, {
-//       password: newPassword,
-//     });
+    await sendVerificationEmail(email, link);
 
-//     // Revoke all refresh tokens
-//     await auth.revokeRefreshTokens(user.uid);
+    res.status(200).json({
+      status: 200,
+      message: "Email verification link sent",
+    });
+  } catch (error) {
+    const err = error as FirebaseError;
+    functions.logger.error("Error in account verification:", err);
 
-//     res.status(200).json({
-//       status: 200,
-//       message: "Password has been reset successfully",
-//     });
-//   } catch (error) {
-//     const err = error as FirebaseError;
-//     functions.logger.error("Error resetting password:", err);
-
-//     if (err.code === "auth/user-not-found") {
-//       res.status(400).json({
-//         status: 400,
-//         error: "Invalid or expired reset code",
-//       });
-//       return;
-//     }
-
-//     res.status(500).json({
-//       status: 500,
-//       error: "Failed to reset password",
-//     });
-//   }
-// };
+    res.status(400).json({
+      status: 400,
+      error: "Something went wrong",
+    });
+  }
+};
