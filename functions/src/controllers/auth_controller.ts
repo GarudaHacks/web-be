@@ -282,7 +282,7 @@ export const sessionLogin = async (
       user = await auth.getUserByEmail(decodedIdToken.email);
 
       // update user record for first time
-      const docRef = await db.collection("questions").doc(user.uid).get();
+      const docRef = await db.collection("users").doc(user.uid).get();
       if (!docRef.exists) {
         const userData: User = formatUser({
           email: user.email ?? "",
