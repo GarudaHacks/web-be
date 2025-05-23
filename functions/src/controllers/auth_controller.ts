@@ -266,28 +266,74 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   const { name, email, password } = req.body;
 
   if (!validateEmailAndPassword(email, password, res)) return;
+  if (!name) {
+    res.status(400).json({
+      status: 400,
+      error: "Name is required",
+    });
+    return;
+  }
 
+  let user;
   try {
-    if (!name) {
-      res.status(400).json({
-        status: 400,
-        error: "Name is required",
-      });
-      return;
-    }
-
-    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
-
-    const user = await auth.createUser({
+    user = await auth.createUser({
       displayName: name,
       email,
       password,
     });
-
     // set custom claims to user
     await auth.setCustomUserClaims(user.uid, {
       role: "User",
     });
+  } catch (error) {
+    const err = error as FirebaseError;
+    if (err.code.match("auth/email-already-exists")) {
+      res.status(409).json({
+        status: 409,
+        error: "Email already exists",
+      });
+      return
+    } else {
+      functions.logger.error("Error when trying to register an user:", err);
+      res.status(500).json({
+        status: 500,
+        error: "Something went wrong"
+      })
+      return
+    }
+  }
+
+  // if user already in db (e.g. signed up using google previously) then we would not want to create a new document
+  try {
+    const existingUserRef = await db.collection("users").doc(user.uid).get();
+    if (!existingUserRef.exists) {
+      const userData: User = formatUser({
+        email: user.email ?? "",
+        firstName: user.displayName ?? "",
+        status: APPLICATION_STATUS.NOT_APPLICABLE,
+      });
+
+      await db
+        .collection("users")
+        .doc(user.uid)
+        .set({
+          ...userData,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+    }
+  } catch (error) {
+    functions.logger.error("Error when checking existing user for registration:", error);
+    res.status(500).json({
+      status: 500,
+      error: "Something went wrong",
+    });
+    return;
+  }
+
+
+  try {
+
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     // Generate email verification link
     const verificationLink = await auth.generateEmailVerificationLink(email);
@@ -304,20 +350,6 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const token = (
       await axios.post(url, { token: customToken, returnSecureToken: true })
     ).data;
-
-    const userData: User = formatUser({
-      email: user.email ?? "",
-      firstName: user.displayName ?? "",
-      status: APPLICATION_STATUS.NOT_APPLICABLE,
-    });
-
-    await db
-      .collection("users")
-      .doc(user.uid)
-      .set({
-        ...userData,
-        createdAt: FieldValue.serverTimestamp(),
-      });
 
     try {
       const cookies = await auth.createSessionCookie(token.idToken, {
@@ -414,6 +446,7 @@ export const sessionLogin = async (
   res: Response
 ): Promise<void> => {
   const idToken = req.body.id_token;
+
   if (!idToken) {
     functions.logger.warn("Required id_token in the body");
     res.status(400).json({
@@ -423,41 +456,86 @@ export const sessionLogin = async (
     return;
   }
 
+  let user;
+  let decodedIdToken;
+
+  // validate user through token
+  try {
+    decodedIdToken = await auth.verifyIdToken(idToken);
+  } catch (error) {
+    const err = error as FirebaseError;
+    if (err.code === "auth/user-not-found") {
+      functions.logger.error("User not found", error);
+      res.status(404).json({ status: 404, error: "User not found" });
+      return;
+    } else if (err.code === "auth/invalid-id-token") {
+      functions.logger.error("Invalid credentials");
+      res.status(401).json({ status: 401, error: "ID token is invalid" });
+      return;
+    } else if (err.code === "auth/id-token-expired") {
+      functions.logger.error("The provided Firebase ID token is expired");
+      res.status(401).json({
+        status: 401,
+        error: "The provided Firebase ID token is expired",
+      });
+      return;
+    }
+    functions.logger.error("Error when trying to session login user:", error);
+    res.status(500).json({ status: 500, error: "Something went wrong" });
+    return;
+  }
+
+  if (decodedIdToken.email === undefined) {
+    functions.logger.error("Email cannot be found in id token.");
+    res.status(400).json({ status: 400, error: "Invalid credentials" });
+    return;
+  }
+
+  // handle when user does not exist
+  try {
+    user = await auth.getUserByEmail(decodedIdToken.email);
+  } catch (error) {
+    const err = error as FirebaseError;
+    if (err.code === "auth/user-not-found") {
+      functions.logger.error("User not found", error);
+      res.status(404).json({ status: 404, error: "User not found" });
+      return;
+    }
+    functions.logger.error("Error when checking if user exists:", error);
+    res.status(500).json({ status: 500, error: "Something went wrong" });
+    return;
+  }
+
+  // handle when user is new or existing
+  try {
+    const userDocumentRef = await db.collection("users").doc(user.uid).get();
+    // when user is a new user, then populate db
+    if (!userDocumentRef.exists) {
+      const userData: User = formatUser({
+        email: user.email ?? "",
+        firstName: user.displayName ?? "",
+        status: APPLICATION_STATUS.NOT_APPLICABLE,
+      });
+      await db
+        .collection("users")
+        .doc(user.uid)
+        .set({
+          ...userData,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+    } else {
+      user = await auth.getUserByEmail(decodedIdToken.email);
+    }
+  } catch (error) {
+    functions.logger.error("Error when trying to check if user existed for session login", error);
+    return
+  }
+
+  // finally, set cookie
   try {
     const cookies = await auth.createSessionCookie(idToken, {
       expiresIn: SESSION_EXPIRY_SECONDS,
     }); // lasts a week
-
-    const decodedIdToken = await auth.verifyIdToken(idToken);
-
-    let user;
-    if (decodedIdToken.email != null) {
-      user = await auth.getUserByEmail(decodedIdToken.email);
-
-      // update user record for first time
-      const docRef = await db.collection("users").doc(user.uid).get();
-      if (!docRef.exists) {
-        const userData: User = formatUser({
-          email: user.email ?? "",
-          firstName: user.displayName ?? "",
-          status: APPLICATION_STATUS.NOT_APPLICABLE,
-        });
-        await db
-          .collection("users")
-          .doc(user.uid)
-          .set({
-            ...userData,
-            createdAt: FieldValue.serverTimestamp(),
-          });
-      }
-    } else {
-      functions.logger.error(
-        "Could not find existing user with email",
-        decodedIdToken.email
-      );
-      res.status(400).json({ status: 400, error: "Invalid credentials" });
-      return;
-    }
 
     res.cookie("__session", cookies, {
       httpOnly: true,
@@ -489,25 +567,8 @@ export const sessionLogin = async (
       },
     });
   } catch (e) {
-    const err = e as FirebaseError;
-    if (err.code === "auth/user-not-found") {
-      functions.logger.error("User not found", e);
-      res.status(404).json({ status: 404, error: "User not found" });
-      return;
-    } else if (err.code === "auth/invalid-id-token") {
-      functions.logger.error("Invalid credentials");
-      res.status(401).json({ status: 401, error: "ID token is invalid" });
-      return;
-    } else if (err.code === "auth/id-token-expired") {
-      functions.logger.error("The provided Firebase ID token is expired");
-      res.status(401).json({
-        status: 401,
-        error: "The provided Firebase ID token is expired",
-      });
-      return;
-    }
     functions.logger.error("Error when trying to session login", e);
-    res.status(500).json({ status: 500, error: e });
+    res.status(500).json({ status: 500, error: "Something went wrong" });
   }
 };
 
