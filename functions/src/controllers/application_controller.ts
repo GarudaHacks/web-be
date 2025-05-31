@@ -116,6 +116,7 @@ async function saveData(
 
       const data: Record<string, string> = {
         ...dataToSave,
+        userId: uid,
         updatedAt: new Date().toISOString(),
       };
 
@@ -133,6 +134,7 @@ async function saveData(
 
       const data: Record<string, string> = {
         ...dataToSave,
+        userId: uid,
         updatedAt: new Date().toISOString(),
       };
 
