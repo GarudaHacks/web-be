@@ -496,6 +496,11 @@ function validateStringValue(fieldValue: string | any, question: Question) {
     return errors;
   }
 
+  /**
+   * Counts the number of words in a given text string.
+   * @param {string} text - The text to count words from
+   * @returns {number} The number of words in the text
+   */
   function countWords(text: string): number {
     if (!text || text.trim() === "") return 0;
     return text.trim().split(/\s+/).length;
