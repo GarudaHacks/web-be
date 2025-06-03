@@ -165,7 +165,10 @@ async function constructDataToSave(
     if (question.id === undefined || question.id === null) continue;
     const fieldValue = req.body[question.id];
     // rewrite file path
-    if (question.type === QUESTION_TYPE.FILE && !(fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+    if (
+      question.type === QUESTION_TYPE.FILE &&
+      !(fieldValue === undefined || fieldValue === "" || fieldValue === null)
+    ) {
       dataToSave[
         question.id
       ] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${
@@ -277,10 +280,9 @@ async function validateFileUploaded(
   question: Question,
   uid: string
 ) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
   const validation = question.validation as FileValidation;
-
 
   // skip validation if not required and value is empty
   if (
@@ -336,7 +338,7 @@ async function validateFileUploaded(
 
 // eslint-disable-next-line require-jsdoc
 function validateDropdownValue(fieldValue: string | any, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
   const validation = question.validation as DropdownValidation;
 
@@ -373,7 +375,7 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
 
 // eslint-disable-next-line require-jsdoc
 function validateDatetimeValue(fieldValue: string, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
   const validation = question.validation as DatetimeValidation;
 
@@ -409,7 +411,7 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
 
 // eslint-disable-next-line require-jsdoc
 function validateNumberValue(fieldValue: number | any, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
   const validation = question.validation as NumberValidation;
 
@@ -433,8 +435,20 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
     return errors;
   }
 
-  // check type
-  if (typeof fieldValue !== "number") {
+  // Convert string to number if needed
+  let numericValue: number;
+  if (typeof fieldValue === "string") {
+    numericValue = Number(fieldValue);
+    if (isNaN(numericValue)) {
+      errors.push({
+        field_id: `${question.id}`,
+        message: `Must be a valid number`,
+      });
+      return errors;
+    }
+  } else if (typeof fieldValue === "number") {
+    numericValue = fieldValue;
+  } else {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be type of number`,
@@ -443,13 +457,13 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   }
 
   // check value
-  if (validation.minValue && fieldValue < validation.minValue) {
+  if (validation.minValue && numericValue < validation.minValue) {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be more than or equal to ${validation.minValue}`,
     });
   }
-  if (validation.maxValue && fieldValue > validation.maxValue) {
+  if (validation.maxValue && numericValue > validation.maxValue) {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be less than or equal to ${validation.maxValue}`,
@@ -463,7 +477,7 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
  * Validate string value. Also works for textarea.
  */
 function validateStringValue(fieldValue: string | any, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
   const validation = question.validation as StringValidation;
 
