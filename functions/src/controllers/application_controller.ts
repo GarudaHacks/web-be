@@ -496,18 +496,41 @@ function validateStringValue(fieldValue: string | any, question: Question) {
     return errors;
   }
 
+  function countWords(text: string): number {
+    if (!text || text.trim() === "") return 0;
+    return text.trim().split(/\s+/).length;
+  }
+
   // check length
-  if (validation.minLength && fieldValue.length < validation.minLength) {
+  if (validation.minLength && countWords(fieldValue) < validation.minLength) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be at least ${validation.minLength} character(s)`,
+      message: `Must be at least ${validation.minLength} word(s)`,
     });
-  } else if (validation.maxLength && fieldValue.length > validation.maxLength) {
+  } else if (validation.maxLength && countWords(fieldValue) > validation.maxLength) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be less than ${validation.maxLength} character(s)`,
+      message: `Must be less than ${validation.maxLength} word(s)`,
     });
   }
+
+  // check regex pattern
+  // if (validation.pattern) {
+  //   try {
+  //     const regex = new RegExp(validation.pattern);
+  //     if (!regex.test(fieldValue)) {
+  //       errors.push({
+  //         field_id: `${question.id}`,
+  //         message: `Value does not match the required pattern`,
+  //       });
+  //     }
+  //   } catch (regexError) {
+  //     errors.push({
+  //       field_id: `${question.id}`,
+  //       message: `Invalid validation pattern configured`,
+  //     });
+  //   }
+  // }
   
   return errors;
 }
