@@ -292,14 +292,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         status: 409,
         error: "Email already exists",
       });
-      return
+      return;
     } else {
       functions.logger.error("Error when trying to register an user:", err);
       res.status(500).json({
         status: 500,
-        error: "Something went wrong"
-      })
-      return
+        error: "Something went wrong",
+      });
+      return;
     }
   }
 
@@ -308,8 +308,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const existingUserRef = await db.collection("users").doc(user.uid).get();
     if (!existingUserRef.exists) {
       const userData: User = formatUser({
-        email: user.email ?? "",
-        firstName: user.displayName ?? "",
+        email: email ?? "",
+        firstName: name ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
       });
 
@@ -322,7 +322,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         });
     }
   } catch (error) {
-    functions.logger.error("Error when checking existing user for registration:", error);
+    functions.logger.error(
+      "Error when checking existing user for registration:",
+      error
+    );
     res.status(500).json({
       status: 500,
       error: "Something went wrong",
@@ -330,9 +333,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-
   try {
-
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     // Generate email verification link
@@ -527,8 +528,11 @@ export const sessionLogin = async (
       user = await auth.getUserByEmail(decodedIdToken.email);
     }
   } catch (error) {
-    functions.logger.error("Error when trying to check if user existed for session login", error);
-    return
+    functions.logger.error(
+      "Error when trying to check if user existed for session login",
+      error
+    );
+    return;
   }
 
   // finally, set cookie
