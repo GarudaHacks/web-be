@@ -39,9 +39,6 @@ export const validateSessionCookie = async (
   const sessionCookie = extractSessionCookieFromCookie(req);
   // Check for session cookie
   if (!sessionCookie) {
-    functions.logger.error(
-      "No session cookie found. Login for session cookies."
-    );
     res.status(401).json({
       status: 401,
       error: "No session cookie found",
