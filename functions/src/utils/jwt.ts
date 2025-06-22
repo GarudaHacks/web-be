@@ -35,7 +35,6 @@ export function extractSessionCookieFromCookie(req: Request) {
     sessionCookie = req.cookies.__session;
     return sessionCookie;
   }
-  functions.logger.warn("Cannot find __session cookie");
   return;
 }
 

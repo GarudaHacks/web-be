@@ -109,8 +109,14 @@ async function saveData(
   uid: string
 ) {
   try {
+    functions.logger.info(
+      `Starting saveData for user ${uid} in state ${state}`
+    );
+    functions.logger.info(`Data to save: ${JSON.stringify(dataToSave)}`);
+
     // if currently in PROFILE state, then upsert data to `users` collection.
     if (state === APPLICATION_STATES.PROFILE) {
+      functions.logger.info(`Saving to users collection for state ${state}`);
       const userRef = db.collection("users").doc(uid);
       const userDoc = await userRef.get();
 
@@ -121,14 +127,23 @@ async function saveData(
       };
 
       if (!userDoc.exists) {
+        functions.logger.info(`Creating new user document for ${uid}`);
         data.createdAt = new Date().toISOString();
+      } else {
+        functions.logger.info(`Updating existing user document for ${uid}`);
       }
 
       await userRef.set(data, { merge: true });
+      functions.logger.info(
+        `Successfully saved to users collection for ${uid}`
+      );
     }
 
     // upsert other data in `application` section.
     else {
+      functions.logger.info(
+        `Saving to applications collection for state ${state}`
+      );
       const docRef = db.collection("applications").doc(uid);
       const doc = await docRef.get();
 
@@ -139,14 +154,23 @@ async function saveData(
       };
 
       if (!doc.exists) {
+        functions.logger.info(`Creating new application document for ${uid}`);
         data.createdAt = new Date().toISOString();
+      } else {
+        functions.logger.info(
+          `Updating existing application document for ${uid}`
+        );
       }
 
       await docRef.set(data, { merge: true });
+      functions.logger.info(
+        `Successfully saved to applications collection for ${uid}`
+      );
     }
   } catch (error) {
-    console.error("Error saving application:", error);
-    throw new Error("Failed to save application");
+    const err = error as Error;
+    functions.logger.error(`Error saving application for user ${uid}:`, err);
+    throw new Error(`Failed to save application: ${err.message}`);
   }
 }
 
@@ -526,7 +550,10 @@ function validateStringValue(fieldValue: string | any, question: Question) {
       field_id: `${question.id}`,
       message: `Must be at least ${validation.minLength} word(s)`,
     });
-  } else if (validation.maxLength && countWords(fieldValue) > validation.maxLength) {
+  } else if (
+    validation.maxLength &&
+    countWords(fieldValue) > validation.maxLength
+  ) {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be less than ${validation.maxLength} word(s)`,
@@ -550,7 +577,7 @@ function validateStringValue(fieldValue: string | any, question: Question) {
   //     });
   //   }
   // }
-  
+
   return errors;
 }
 
