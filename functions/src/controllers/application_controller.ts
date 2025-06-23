@@ -1001,3 +1001,252 @@ export const setApplicationStatusToSubmitted = async (
     });
   }
 };
+
+export const setApplicationStatusToConfirmedRsvp = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const UID = await getUidFromSessionCookie(req);
+
+    if (!UID) {
+      res.status(400).json({
+        status: 400,
+        error: "Invalid authentication token",
+      });
+      return;
+    }
+
+    const userRef = db.collection("users").doc(UID);
+
+    const data: Record<string, string> = {
+      status: APPLICATION_STATUS.CONFIRMED_RSVP,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await userRef.set(data, { merge: true });
+
+    res.status(201).json({
+      status: 201,
+      success: true,
+      message: "Application status updated to confirmed RSVP",
+    });
+  } catch (err) {
+    functions.logger.error(
+      "Error updating application status to confirmed RSVP:",
+      err
+    );
+    res.status(500).json({
+      status: 500,
+      error: "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * Upload underage consent form file to firebase storage and store the link in Firestore.
+ * This endpoint is specifically for uploading consent forms for underage participants.
+ * The file will be stored with a specific naming convention and the public URL will be
+ * saved to the user's document in Firestore with the key "consent_form".
+ *
+ * Param:
+ * - `file`: consent form file to be uploaded (PDF, DOC, DOCX, etc.)
+ */
+export const uploadConsentForm = async (
+  req: ExtendedRequest,
+  res: Response
+): Promise<void> => {
+  if (!req.headers["content-type"]) {
+    res.status(400).json({
+      status: 400,
+      error: "Missing content-type header",
+    });
+    return;
+  }
+
+  const UID = await getUidFromSessionCookie(req);
+  if (!UID) {
+    res.status(400).json({
+      status: 400,
+      error: "Invalid authentication token",
+    });
+    return;
+  }
+
+  // Define allowed file types for consent forms
+  const ALLOWED_TYPES = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/png",
+    "image/jpg",
+  ];
+
+  const MAX_FILE_SIZE = 5; // 5MB limit for consent forms
+  const busboy = Busboy({
+    headers: req.headers,
+    limits: {
+      fileSize: MAX_FILE_SIZE * 1024 * 1024,
+    },
+  });
+
+  let fileData: FileData | null = null;
+  let fileSizeExceeded = false;
+
+  try {
+    await new Promise((resolve, reject) => {
+      busboy
+        .once("close", resolve)
+        .once("error", reject)
+        .on(
+          "file",
+          (fieldname: string, file: NodeJS.ReadableStream, info: FileInfo) => {
+            const { filename, mimeType } = info;
+
+            if (!ALLOWED_TYPES.includes(mimeType)) {
+              file.resume(); // discard the file
+              return;
+            }
+
+            const chunks: Buffer[] = [];
+            file.on("data", (chunk: Buffer) => {
+              if (!fileSizeExceeded) {
+                chunks.push(chunk);
+              }
+            });
+
+            // handle file size limit
+            file.on("limit", () => {
+              fileSizeExceeded = true;
+              res.writeHead(413, {
+                Connection: "close",
+                "Content-Type": "application/json",
+              });
+              res.end(
+                JSON.stringify({
+                  error: "File too large",
+                  details: [
+                    {
+                      field_id: "consent_form",
+                      message: `File size exceeds maximum limit of ${MAX_FILE_SIZE}MB`,
+                    },
+                  ],
+                })
+              );
+            });
+
+            file.on("end", () => {
+              if (!fileSizeExceeded) {
+                const newfileData: FileData = {
+                  buffer: Buffer.concat(chunks as unknown as Uint8Array[]),
+                  originalname: filename,
+                  mimetype: mimeType,
+                  fieldname: fieldname,
+                };
+                fileData = newfileData;
+              }
+            });
+          }
+        );
+
+      // feed busboy with the request data
+      if (req.rawBody) {
+        busboy.end(req.rawBody);
+      } else {
+        req.pipe(busboy);
+      }
+    });
+
+    // exit early if file size was exceeded
+    if (fileSizeExceeded) {
+      return;
+    }
+
+    if (!fileData) {
+      res.status(400).json({
+        status: 400,
+        error: "Failed to upload",
+        details: [
+          {
+            field_id: "consent_form",
+            message:
+              "No file provided or unsupported file type. Allowed types: PDF, DOC, DOCX, JPEG, PNG",
+          },
+        ],
+      });
+      return;
+    }
+
+    const safeFileData = fileData as {
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+      fieldname: string;
+    };
+
+    // upload file to firebase with specific naming for consent forms
+    const fileName = `${USER_UPLOAD_PATH}${UID}_consent_form.${safeFileData.originalname
+      .split(".")
+      .pop()}`;
+    const fileUpload = bucket.file(fileName);
+
+    // check if file exists and delete it
+    const [exists] = await fileUpload.exists();
+    if (exists) {
+      await fileUpload.delete();
+    }
+
+    const stream = fileUpload.createWriteStream({
+      metadata: {
+        contentType: safeFileData.mimetype,
+        metadata: {
+          uploadedBy: UID,
+          fileType: "consent_form",
+          uploadedAt: new Date().toISOString(),
+          originalName: safeFileData.originalname,
+        },
+      },
+    });
+
+    const uploadPromise = new Promise((resolve, reject) => {
+      stream.on("error", reject);
+      stream.on("finish", async () => {
+        try {
+          await fileUpload.makePublic();
+          const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+          resolve(publicUrl);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    stream.end(safeFileData.buffer);
+
+    const publicUrl = await uploadPromise;
+
+    // Save the consent form URL to Firestore
+    const userRef = db.collection("users").doc(UID);
+    await userRef.set(
+      {
+        consent_form: publicUrl,
+        consent_form_uploaded_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    res.status(201).json({
+      status: 201,
+      message: "Consent form uploaded successfully",
+      data: {
+        url: publicUrl,
+        consent_form: publicUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Consent form upload error:", error);
+    res.status(500).json({ status: 500, error: "Internal server error" });
+  }
+};
