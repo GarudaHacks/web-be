@@ -1,5 +1,6 @@
 import express, { Request, Response } from "express";
 import {
+  getCurrentUserRole,
   login,
   logout,
   register,
@@ -11,6 +12,7 @@ import {
 
 const router = express.Router();
 
+router.get("/role", (req: Request, res: Response) => getCurrentUserRole(req, res))
 router.post("/login", (req: Request, res: Response) => login(req, res));
 router.post("/register", (req: Request, res: Response) => register(req, res));
 router.post("/reset-password", requestPasswordReset);
