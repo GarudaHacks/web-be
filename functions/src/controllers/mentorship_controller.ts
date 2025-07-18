@@ -177,7 +177,7 @@ export const bookAMentorshipAppointment = async (
       return;
     }
 
-    const { mentorshipAppointmentId } = req.body
+    const { mentorshipAppointmentId, hackerDescription } = req.body
 
     // reject if no mentorshipAppointmentId
     if (mentorshipAppointmentId === undefined || !mentorshipAppointmentId) {
@@ -218,6 +218,7 @@ export const bookAMentorshipAppointment = async (
      */
     const updatedMentorshipAppointment = {
       hackerId: uid,
+      hackerDescription: hackerDescription,
       ...mentorshipData
     }
     await mentorshipAppointmentDoc.update(updatedMentorshipAppointment)
@@ -282,7 +283,7 @@ export const getMyMentorshipAppointments = async (
 
       res.status(200).json({
         status: 200,
-        data: appointmentsAsMentor
+        data: mentorshipAppointments
       })
       return;
     }
