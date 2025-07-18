@@ -3,11 +3,68 @@ import { FirestoreMentor, MentorshipAppointment } from "../models/mentorship";
 import { Request, Response } from "express";
 import { User } from "../models/user";
 
+export const getMentor = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  const { mentorId } = req.params;
+  try {
+    /**
+     * Validate request:
+     * 1. Mentor id is not in params
+     */
+    if (!mentorId) {
+      res.status(400).json({
+        status: 400,
+        error: "Mentor id is required"
+      })
+      return;
+    }
+
+    /**
+     * Process request
+     * 1. Find mentor in db
+     */
+    const mentorDoc = await db.collection("users").doc(mentorId).get()
+    if (!mentorDoc.exists) {
+      res.status(404).json({
+        status: 404,
+        error: "Cannot find mentor with the given mentor id"
+      })
+      return;
+    }
+    const mentorData = mentorDoc.data()
+
+    if (mentorData) {
+      const trimmedData: FirestoreMentor = {
+        "id": mentorData.id,
+        "email": mentorData.email,
+        "name": mentorData.name,
+        "intro": mentorData.intro,
+        "specialization": mentorData.specialization,
+        "mentor": mentorData.mentor,
+        "discordUsername": mentorData.discordUsername
+      }
+      res.status(200).json({
+        status: 200,
+        data: trimmedData
+      })
+    } else {
+      res.status(200).json({
+        status: 200,
+        data: {}
+      })
+    }
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message })
+  }
+}
+
 export const getMentors = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  let allMentors: FirestoreMentor[] = [];
+  const allMentors: FirestoreMentor[] = [];
 
   try {
     const snapshot = await db.collection('users')
@@ -29,7 +86,7 @@ export const getMentorshipAppointments = async (
   req: Request,
   res: Response
 ): Promise<void> => {
-  let mentorshipAppointments: MentorshipAppointment[] = [];
+  const mentorshipAppointments: MentorshipAppointment[] = [];
 
   try {
     const snapshot = await db.collection('mentorships')
@@ -62,7 +119,7 @@ export const getMentorshipAppointmentsByMentorId = async (
       return;
     }
 
-    let mentorships: MentorshipAppointment[] = [];
+    const mentorships: MentorshipAppointment[] = [];
     doc.docs.map((mentorship) => {
       mentorships.push({
         id: mentorship.id,
@@ -208,7 +265,7 @@ export const getMyMentorshipAppointments = async (
       const appointmentsAsHacker = await db.collection("mentorships")
         .where("hackerId", "==", uid)
         .get()
-      
+
       mentorshipAppointments = appointmentsAsHacker.docs.map((appointment) => ({
         id: appointment.id,
         ...appointment.data()
@@ -224,6 +281,11 @@ export const getMyMentorshipAppointments = async (
   }
 }
 
+/**
+ * 
+ * @param data 
+ * @returns 
+ */
 function isMentor(data: FirestoreMentor | User): data is FirestoreMentor {
   return 'mentor' in data;
 }

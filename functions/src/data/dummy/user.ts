@@ -1,7 +1,7 @@
 import { FirestoreMentor } from "../../models/mentorship";
 import { User } from "../../models/user";
 
-export const dummy_mentors: FirestoreMentor[] = [
+export const dummyMentors: FirestoreMentor[] = [
   {
     "id": "-OVQFbrn-Ct6u6SSB47I",
     mentor: true,
@@ -19,14 +19,5 @@ export const dummy_mentors: FirestoreMentor[] = [
     "specialization": "product manager,designer",
     "discordUsername": "hehei",
     "intro": "Hi guuyss"
-  }
-]
-
-export const dummy_hackers: User[] = [
-  {
-    "id": "-OVQHbXAlQiM5NQHrTe1",
-    "email": "hacker@gmail.com",
-    "firstName": "Hacker",
-    "lastName": "Last",
   }
 ]

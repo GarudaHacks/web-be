@@ -1,6 +1,6 @@
 import { MentorshipAppointment } from "../../models/mentorship";
 
-export const dummy_mentorships: MentorshipAppointment[] = [
+export const dummyMentorships: MentorshipAppointment[] = [
   {
     "mentorId": "-OVQFbrn-Ct6u6SSB47I",
     "startTime": 1752804000,

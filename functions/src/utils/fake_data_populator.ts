@@ -7,8 +7,8 @@ import {
   QUESTION_TYPE,
 } from "../types/application_types";
 import { FirestoreMentor, MentorshipAppointment } from "../models/mentorship";
-import { dummy_mentors } from "../data/dummy/user";
-import { dummy_mentorships } from "../data/dummy/mentorship";
+import { dummyMentors } from "../data/dummy/user";
+import { dummyMentorships } from "../data/dummy/mentorship";
 
 /**
  * Logs a message with a specific prefix.
@@ -203,15 +203,18 @@ export class FakeDataPopulator {
   private async generateMentorshipAppointments(): Promise<void> {
     log("generateMentorshipAppointments");
 
-    dummy_mentorships.map(async (dM: MentorshipAppointment) => {
+    dummyMentorships.map(async (dM: MentorshipAppointment) => {
       await this.createMentorshipAppointmentDocument(dM)
     })
   }
-
+  
+  /**
+   * Generate fake mentors.
+   */
   private async generateMentors(): Promise<void> {
     log("generateMentors")
 
-    dummy_mentors.map(async (mentor: FirestoreMentor) => {
+    dummyMentors.map(async (mentor: FirestoreMentor) => {
       await this.createMentorDocument(mentor)
     })
   }
