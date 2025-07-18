@@ -1,4 +1,6 @@
 export interface User {
+  id?: string; // linked to uid in firebase doc (not in the field)
+
   firstName: string;
   lastName: string;
   email: string;
