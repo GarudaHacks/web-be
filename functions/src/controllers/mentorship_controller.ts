@@ -53,11 +53,10 @@ export const getMentorshipAppointmentsByMentorId = async (
   try {
     const { mentorId } = req.params;
     const doc = await db.collection("mentorships")
-      .where("mentor", "==", true)
       .where("mentorId", "==", mentorId)
       .get();
 
-    if (!doc.empty) {
+    if (doc.empty) {
       res.status(404).json({ error: "Cannot find mentorships related with the mentor." });
       return;
     }
@@ -75,3 +74,68 @@ export const getMentorshipAppointmentsByMentorId = async (
     res.status(500).json({ error: (error as Error).message });
   }
 };
+
+export const bookAMentorshipAppointment = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { mentorshipAppointmentId, hackerId } = req.body
+
+    // reject if no mentorshipAppointmentId
+    if (mentorshipAppointmentId === undefined || !mentorshipAppointmentId) {
+      res.status(400).json({
+        status: 400,
+        error: "mentorshipAppointmentId is required in body"
+      })
+      return
+    }
+
+    // reject if no hackerId
+    if (hackerId === undefined || !hackerId) {
+      res.status(400).json({
+        status: 400,
+        error: "hackerId is required in body"
+      })
+      return
+    }
+
+    /**
+     * Validation:
+     * 1. Reject if the mentorship appointment does not exist in db
+     * 2. Reject if the mentorship is already booked
+     */
+    const mentorshipAppointmentDoc = await db.collection("mentorships").doc(mentorshipAppointmentId)
+    const mentorshipAppointmentSnap = await mentorshipAppointmentDoc.get()
+    if (!mentorshipAppointmentSnap.exists) {
+      res.status(400).json({
+        status: 400,
+        error: "Mentorship appointment does not exist"
+      })
+    }
+
+    const mentorshipData: MentorshipAppointment | undefined = mentorshipAppointmentSnap.data() as MentorshipAppointment
+    if (mentorshipData.hackerId) {
+      res.status(400).json({
+        status: 400,
+        error: "Mentorship slot is already booked"
+      })
+    }
+
+    /**
+     * Book the mentorship slot
+     * 1. Update the hackerId for the document
+     */
+    const updatedMentorshipAppointment = {
+      hackerId: hackerId,
+      ...mentorshipData
+    }  
+    await mentorshipAppointmentDoc.update(updatedMentorshipAppointment)
+    res.status(200).json({
+      status: 200,
+      data: "Successfuly booked mentorship slot"
+    })
+  } catch (error) {
+    res.status(500).json({error: (error as Error).message})
+  }
+}
