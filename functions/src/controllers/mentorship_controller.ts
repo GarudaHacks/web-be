@@ -2,6 +2,31 @@ import { db } from "../config/firebase"
 import { FirestoreMentor, MentorshipAppointment } from "../models/mentorship";
 import { Request, Response } from "express";
 import { User } from "../models/user";
+import { MentorshipConfig } from "../types/config";
+
+export const getMentorshipConfig = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const mentorshipConfigSnapshot = await db.collection("config").doc("mentorshipConfig").get()
+    const mentorshipConfigData = mentorshipConfigSnapshot.data()
+
+    if (!mentorshipConfigSnapshot.exists || mentorshipConfigData === undefined) {
+      res.status(400).json({
+        status: 400,
+        error: "Config not found"
+      })
+      return;
+    }
+    res.status(200).json({
+      status: 200,
+      data: mentorshipConfigData
+    })
+  } catch (error) {
+    res.status(500).json({error: (error as Error).message})
+  }
+}
 
 export const getMentor = async (
   req: Request,
