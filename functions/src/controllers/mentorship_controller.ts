@@ -270,7 +270,11 @@ export const bookAMentorshipAppointment = async (
  * Use for:
  * 1. Mentor in portal
  * 2. Hacker in portal
+ * 
+ * @param req.query.upcomingOnly boolean : If or not only fetches upcoming only.
+ * @param req.query.recentOnly boolean : If or not only fetches recent only.
  */
+
 export const getMyMentorshipAppointments = async (
   req: Request,
   res: Response
@@ -291,6 +295,7 @@ export const getMyMentorshipAppointments = async (
 
     const currentUserData = currentUserSnap.data() as FirestoreMentor | User;
     const upcomingOnly = req.query.upcomingOnly === 'true';
+    const recentOnly = req.query.recentOnly === 'true';
 
     // 2. Build Query Dynamically
     let query = db.collection("mentorships");
@@ -301,9 +306,11 @@ export const getMyMentorshipAppointments = async (
       query = query.where("hackerId", "==", uid) as CollectionReference<DocumentData>;;
     }
 
+    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
     if (upcomingOnly) {
-      const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
-      query = query.where("startTime", ">=", currentTimeSeconds) as CollectionReference<DocumentData>;;
+      query = query.where("startTime", ">=", currentTimeSeconds) as CollectionReference<DocumentData>;
+    } else if (recentOnly) {
+      query = query.where("startTime", "<=", currentTimeSeconds) as CollectionReference<DocumentData>;
     }
 
     // 3. Execute Query and Send Response
