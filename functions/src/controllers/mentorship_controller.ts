@@ -2,7 +2,9 @@ import { db } from "../config/firebase"
 import { FirestoreMentor, MentorshipAppointment } from "../models/mentorship";
 import { Request, Response } from "express";
 import { User } from "../models/user";
+import { DateTime } from 'luxon';
 import { MentorshipConfig } from "../types/config";
+import { CollectionReference, DocumentData } from "firebase-admin/firestore";
 
 export const getMentorshipConfig = async (
   req: Request,
@@ -274,86 +276,52 @@ export const getMyMentorshipAppointments = async (
   res: Response
 ): Promise<void> => {
   try {
-    /**
-     * Validate current user:
-     * 1. User is not valid / not authenticated.
-     * 2. Get current user from db
-     */
+    // 1. Validate User
     const uid = req.user?.uid;
-    if (!uid || uid === undefined) {
-      res.status(401).json({
-        status: 401,
-        error: "Cannot get current user uid"
-      })
+    if (!uid) {
+      res.status(401).json({ status: 401, error: "Cannot get current user uid" });
       return;
     }
 
-    const currentUserDoc = await db.collection("users").doc(uid)
-    const currentUserSnap = await currentUserDoc.get()
+    const currentUserSnap = await db.collection("users").doc(uid).get();
     if (!currentUserSnap.exists) {
-      res.status(400).json({
-        status: 400,
-        error: "Cannot find user in the users collection"
-      })
+      res.status(400).json({ status: 400, error: "User not found" });
       return;
     }
 
-    /**
-     * Get argument to fetch only recentOnly to true.
-     */
-    const upcomingOnly = req.params.recentOnly
+    const currentUserData = currentUserSnap.data() as FirestoreMentor | User;
+    const upcomingOnly = req.query.upcomingOnly === 'true';
 
-    /**
-     * Get user mentorship appointments:
-     * 1. Check if user is mentor, then fetch his/her appointments
-     * 2. Otherwise return appointments with current user id as hackerId
-     */
-    let mentorshipAppointments: MentorshipAppointment[] = []
-    const currentUserData = currentUserSnap.data() as FirestoreMentor | User
+    // 2. Build Query Dynamically
+    let query = db.collection("mentorships");
+
     if (isMentor(currentUserData)) {
-      const appointmentsAsMentorQuery = await db.collection("mentorships")
-        .where("mentorId", "==", uid)
-
-      if (upcomingOnly === "true") {
-        appointmentsAsMentorQuery.where("startTime", ">=", new Date())
-      }
-
-      const appointmentsAsMentor = await appointmentsAsMentorQuery.orderBy("startTime", "asc").get()
-      mentorshipAppointments = appointmentsAsMentor.docs.map((appointment) => ({
-        id: appointment.id,
-        ...appointment.data()
-      })) as MentorshipAppointment[];
-
-      res.status(200).json({
-        status: 200,
-        data: mentorshipAppointments
-      })
-      return;
+      query = query.where("mentorId", "==", uid) as CollectionReference<DocumentData>;
+    } else {
+      query = query.where("hackerId", "==", uid) as CollectionReference<DocumentData>;;
     }
-    else {
-      const appointmentsAsHackerQuery = await db.collection("mentorships")
-        .where("hackerId", "==", uid)
 
-      if (upcomingOnly === "true") {
-        appointmentsAsHackerQuery.where("startTime", ">=", new Date())
-      }
-
-      const appointmentsAsHacker = await appointmentsAsHackerQuery.orderBy("startTime", "asc").get()
-
-      mentorshipAppointments = appointmentsAsHacker.docs.map((appointment) => ({
-        id: appointment.id,
-        ...appointment.data()
-      })) as MentorshipAppointment[]
+    if (upcomingOnly) {
+      const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+      query = query.where("startTime", ">=", currentTimeSeconds) as CollectionReference<DocumentData>;;
     }
+
+    // 3. Execute Query and Send Response
+    const snapshot = await query.orderBy("startTime", "asc").get();
+
+    const mentorshipAppointments = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as MentorshipAppointment[];
 
     res.status(200).json({
       status: 200,
-      data: mentorshipAppointments
-    })
+      data: mentorshipAppointments,
+    });
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message })
+    res.status(500).json({ error: (error as Error).message });
   }
-}
+};
 
 /**
  * 
