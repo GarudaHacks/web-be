@@ -24,7 +24,7 @@ export const getMentorshipConfig = async (
       data: mentorshipConfigData
     })
   } catch (error) {
-    res.status(500).json({error: (error as Error).message})
+    res.status(500).json({ error: (error as Error).message })
   }
 }
 
@@ -107,6 +107,14 @@ export const getMentors = async (
   }
 }
 
+
+/**
+ * Get all mentorship appointments.
+ * 
+ * To be used in admin.
+ * @param req 
+ * @param res 
+ */
 export const getMentorshipAppointments = async (
   req: Request,
   res: Response
@@ -129,6 +137,17 @@ export const getMentorshipAppointments = async (
   }
 }
 
+/**
+ * Get mentorship appointments by mentor id.
+ * 
+ * Use for:
+ * 1. Admin
+ * 2. Mentor in portal
+ * 3. Hacker in portal
+ * @param req 
+ * @param res 
+ * @returns 
+ */
 export const getMentorshipAppointmentsByMentorId = async (
   req: Request,
   res: Response
@@ -158,6 +177,15 @@ export const getMentorshipAppointmentsByMentorId = async (
   }
 };
 
+/**
+ * Book mentorship appointment. Use request cookie to get hacker uid.
+ * 
+ * Use for:
+ * 1. Hacker in portal
+ * @param req 
+ * @param res 
+ * @returns 
+ */
 export const bookAMentorshipAppointment = async (
   req: Request,
   res: Response
@@ -235,6 +263,11 @@ export const bookAMentorshipAppointment = async (
 /**
  * Get the list of my mentorship appointments.
  * If user is mentor, by default will return his appointment.
+ * Use request cookie to get uid.
+ * 
+ * Use for:
+ * 1. Mentor in portal
+ * 2. Hacker in portal
  */
 export const getMyMentorshipAppointments = async (
   req: Request,
@@ -266,6 +299,11 @@ export const getMyMentorshipAppointments = async (
     }
 
     /**
+     * Get argument to fetch only recentOnly to true.
+     */
+    const upcomingOnly = req.params.recentOnly
+
+    /**
      * Get user mentorship appointments:
      * 1. Check if user is mentor, then fetch his/her appointments
      * 2. Otherwise return appointments with current user id as hackerId
@@ -273,9 +311,14 @@ export const getMyMentorshipAppointments = async (
     let mentorshipAppointments: MentorshipAppointment[] = []
     const currentUserData = currentUserSnap.data() as FirestoreMentor | User
     if (isMentor(currentUserData)) {
-      const appointmentsAsMentor = await db.collection("mentorships")
+      const appointmentsAsMentorQuery = await db.collection("mentorships")
         .where("mentorId", "==", uid)
-        .get()
+
+      if (upcomingOnly === "true") {
+        appointmentsAsMentorQuery.where("startTime", ">=", new Date())
+      }
+
+      const appointmentsAsMentor = await appointmentsAsMentorQuery.orderBy("startTime", "asc").get()
       mentorshipAppointments = appointmentsAsMentor.docs.map((appointment) => ({
         id: appointment.id,
         ...appointment.data()
@@ -288,9 +331,14 @@ export const getMyMentorshipAppointments = async (
       return;
     }
     else {
-      const appointmentsAsHacker = await db.collection("mentorships")
+      const appointmentsAsHackerQuery = await db.collection("mentorships")
         .where("hackerId", "==", uid)
-        .get()
+
+      if (upcomingOnly === "true") {
+        appointmentsAsHackerQuery.where("startTime", ">=", new Date())
+      }
+
+      const appointmentsAsHacker = await appointmentsAsHackerQuery.orderBy("startTime", "asc").get()
 
       mentorshipAppointments = appointmentsAsHacker.docs.map((appointment) => ({
         id: appointment.id,
