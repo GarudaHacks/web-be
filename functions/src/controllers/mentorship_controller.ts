@@ -18,24 +18,22 @@ const START_TIME = "startTime";
 export const getMentorshipConfig = async (
   req: Request,
   res: Response
-): Promise<void> => {
+) => {
   try {
     const mentorshipConfigSnapshot = await db.collection("config").doc("mentorshipConfig").get()
     const mentorshipConfigData = mentorshipConfigSnapshot.data() as MentorshipConfig
 
     if (!mentorshipConfigSnapshot.exists || mentorshipConfigData === undefined) {
-      res.status(400).json({
+      return res.status(400).json({
         status: 400,
         error: "Config not found"
       })
-      return;
     }
-    res.status(200).json({
-      status: 200,
+    return res.status(200).json({
       data: mentorshipConfigData
     })
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message })
+    return res.status(500).json({ error: (error as Error).message })
   }
 }
 
@@ -46,7 +44,7 @@ export const getMentorshipConfig = async (
 export const mentorGetMyMentorships = async (
   req: Request,
   res: Response
-): Promise<void> => {
+) => {
   try {
     const uid = req.user?.uid!
 
@@ -82,19 +80,19 @@ export const mentorGetMyMentorships = async (
       mentorships = mentorships.filter(m => m.hackerId == null);
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       data: mentorships,
     });
   } catch (error) {
     functions.logger.error(`Error when trying mentorGetMyMentorships: ${(error as Error).message}`)
-    res.status(500).json({ error: (error as Error).message })
+    return res.status(500).json({ error: (error as Error).message })
   }
 }
 
 export const mentorGetMyMentorship = async (
   req: Request,
   res: Response
-): Promise<void> => {
+) => {
   try {
     const { id } = req.params
 
@@ -103,27 +101,33 @@ export const mentorGetMyMentorship = async (
       res.status(400).json({
         error: "id is required"
       })
-      return;
     }
 
     // 2. Get a mentroship appointment
     const snapshot = await db.collection(MENTORSHIPS).doc(id).get()
     if (!snapshot.exists) {
-      res.status(400).json({
+      return res.status(400).json({
         error: "Cannot find mentorship"
       })
-      return;
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       data: snapshot.data()
     })
   } catch (error) {
     functions.logger.error(`Error when trying mentorGetMyMentorship: ${(error as Error).message}`)
-    res.status(500).json({ error: (error as Error).message })
+    return res.status(500).json({ error: (error as Error).message })
   }
 }
 
+/**
+ * Updates a mentorship
+ * @param req.mentorNotes
+ * @param req.mentorMarkAsDone
+ * @param req.mentorMarkAsAfk
+ * @param res 
+ * @returns 
+ */
 export const mentorPutMyMentorship = async (
   req: Request,
   res: Response
@@ -134,10 +138,9 @@ export const mentorPutMyMentorship = async (
 
     // 1. Validate id is in param
     if (!id) {
-      res.status(400).json({
+      return res.status(400).json({
         error: "id is required"
       })
-      return;
     }
 
     const {
@@ -170,6 +173,32 @@ export const mentorPutMyMentorship = async (
     if (error.code === 5) {
       return res.status(404).json({ error: "Mentorship with that ID was not found." });
     }
+    return res.status(500).json({ error: "An unexpected error occurred." });
+  }
+}
+
+
+/********************
+ * HACKER ENDPOINTS *
+ ********************/
+export const hackerGetMentors = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const allMentors: FirestoreMentor[] = [];
+    const snapshot = await db.collection('users')
+      .where("mentor", "==", true)
+      .get()
+    snapshot.docs.map((mentor) => {
+      allMentors.push({
+        id: mentor.id,
+        ...mentor.data()
+      } as FirestoreMentor)
+    })
+    return res.status(200).json({ data: allMentors })
+  } catch (error: any) {
+    functions.logger.error(`Error when trying hackerGetMentors: ${(error as Error).message}`)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
@@ -231,29 +260,6 @@ export const getMentor = async (
     res.status(500).json({ error: (error as Error).message })
   }
 }
-
-export const getMentors = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const allMentors: FirestoreMentor[] = [];
-
-  try {
-    const snapshot = await db.collection('users')
-      .where("mentor", "==", true)
-      .get()
-    snapshot.docs.map((mentor) => {
-      allMentors.push({
-        id: mentor.id,
-        ...mentor.data()
-      } as FirestoreMentor)
-    })
-    res.status(200).json({ allMentors })
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-}
-
 
 /**
  * Get all mentorship appointments.
