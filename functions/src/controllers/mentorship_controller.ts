@@ -320,7 +320,6 @@ export const hackerGetMentorSchedule = async (
 
 interface BookMentorshipRequest {
   id: string;
-  hackerId: string;
   hackerName: string;
   teamName: string;
   hackerDescription: string;
@@ -333,6 +332,11 @@ export const hackerBookMentorships = async (
 ) => {
   const MAX_CONCURRENT_BOOKINGS = 2
   try {
+    const uid = req.user?.uid
+    if (!uid) {
+      return res.status(401).json({error: "Unauthorized"})
+    }
+
     const { mentorships }: { mentorships: BookMentorshipRequest[] } = req.body;
 
     if (!mentorships || !Array.isArray(mentorships) || mentorships.length === 0) {
@@ -343,20 +347,16 @@ export const hackerBookMentorships = async (
       return res.status(400).json({ error: `Cannot book more than ${MAX_CONCURRENT_BOOKINGS} slots at a time.` });
     }
 
-    const hackerId = mentorships[0].hackerId;
     for (const mentorship of mentorships) {
-      if (!mentorship.id || !mentorship.hackerId || !mentorship.hackerName || !mentorship.teamName || !mentorship.hackerDescription) {
+      if (!mentorship.id || !mentorship.hackerName || !mentorship.teamName || !mentorship.hackerDescription) {
         return res.status(400).json({ error: 'Each mentorship must include id, hackerId, hackerName, teamName, and hackerDescription.' });
-      }
-      if (mentorship.hackerId !== hackerId) {
-        return res.status(400).json({ error: 'All mentorship bookings in a single request must be for the same hacker.' });
       }
     }
 
     const mentorshipsCollection = db.collection(MENTORSHIPS);
     const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
     const existingBookingsQuery = mentorshipsCollection
-      .where(HACKER_ID, '==', hackerId)
+      .where(HACKER_ID, '==', uid)
       .where(START_TIME, '>', currentTimeSeconds);
 
     const existingBookingsSnapshot = await existingBookingsQuery.get();
@@ -392,7 +392,7 @@ export const hackerBookMentorships = async (
       for (const mentorshipRequest of mentorships) {
         const docRef = mentorshipsCollection.doc(mentorshipRequest.id);
         transaction.update(docRef, {
-          hackerId: mentorshipRequest.hackerId,
+          hackerId: uid,
           hackerName: mentorshipRequest.hackerName,
           teamName: mentorshipRequest.teamName,
           hackerDescription: mentorshipRequest.hackerDescription,
