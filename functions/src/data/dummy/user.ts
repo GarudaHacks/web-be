@@ -1,5 +1,4 @@
 import { FirestoreMentor } from "../../models/mentorship";
-import { User } from "../../models/user";
 
 export const dummyMentors: FirestoreMentor[] = [
   {

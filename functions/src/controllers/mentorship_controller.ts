@@ -1,5 +1,5 @@
 import { db } from "../config/firebase"
-import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAsHacker, MentorshipAppointmentResponseAsMentor } from "../models/mentorship";
+import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAsHacker } from "../models/mentorship";
 import { Request, Response } from "express";
 import { User } from "../models/user";
 import { DateTime } from 'luxon';
@@ -38,7 +38,7 @@ export const getMentorshipConfig = async (
 }
 
 
-/********************
+/** ******************
  * MENTOR ENDPOINTS *
  ********************/
 export const mentorGetMyMentorships = async (
@@ -46,7 +46,10 @@ export const mentorGetMyMentorships = async (
   res: Response
 ) => {
   try {
-    const uid = req.user?.uid!
+    const uid = req.user?.uid
+    if (!uid) {
+      return res.status(401).send('Unauthorized: User ID not found.');
+    }
 
     // available query params
     const {
@@ -177,7 +180,7 @@ export const mentorPutMyMentorship = async (
 }
 
 
-/********************
+/** ******************
  * HACKER ENDPOINTS *
  ********************/
 export const hackerGetMentors = async (
@@ -275,290 +278,324 @@ export const hackerGetMentorSchedules = async (
   }
 }
 
-
-
-export const getMentor = async (
+export const hackerGetMentorSchedule = async (
   req: Request,
   res: Response
-): Promise<void> => {
-  const { mentorId } = req.params;
+) => {
   try {
-    /**
-     * Validate request:
-     * 1. Mentor id is not in params
-     */
-    if (!mentorId) {
-      res.status(400).json({
-        status: 400,
-        error: "Mentor id is required"
+    const { id } = req.params
+
+    // 1. Validate id is in param
+    if (!id) {
+      return res.status(400).json({
+        error: "id is required"
       })
-      return;
     }
 
-    /**
-     * Process request
-     * 1. Find mentor in db
-     */
-    const mentorDoc = await db.collection("users").doc(mentorId).get()
-    if (!mentorDoc.exists) {
-      res.status(404).json({
-        status: 404,
-        error: "Cannot find mentor with the given mentor id"
-      })
-      return;
+    const snapshot = await db.collection(MENTORSHIPS).doc(id).get()
+    const data = snapshot.data()
+    if (!snapshot.exists || !data) {
+      return res.status(404).json({error: "Cannot find mentorship"})
     }
-    const mentorData = mentorDoc.data()
 
-    if (mentorData) {
-      const trimmedData: FirestoreMentor = {
-        "id": mentorData.id,
-        "email": mentorData.email,
-        "name": mentorData.name,
-        "intro": mentorData.intro,
-        "specialization": mentorData.specialization,
-        "mentor": mentorData.mentor,
-        "discordUsername": mentorData.discordUsername
-      }
-      res.status(200).json({
-        status: 200,
-        data: trimmedData
-      })
-    } else {
-      res.status(200).json({
-        status: 200,
-        data: {}
-      })
+    const mentorshipAppointmentResponseAsHacker: MentorshipAppointmentResponseAsHacker = {
+      id: data.id,
+      startTime: data.startTime,
+      endTime: data.endTime,
+      mentorId: data.mentorId,
+      hackerId: data.hackerId
     }
+    return res.status(200).json({data: mentorshipAppointmentResponseAsHacker})
   } catch (error) {
-    res.status(500).json({ error: (error as Error).message })
-  }
-}
-
-/**
- * Get all mentorship appointments.
- * 
- * To be used in admin.
- * @param req 
- * @param res 
- */
-export const getMentorshipAppointments = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  const mentorshipAppointments: MentorshipAppointment[] = [];
-
-  try {
-    const snapshot = await db.collection('mentorships')
-      .where("mentor", "==", true)
-      .get()
-    snapshot.docs.map((mentor) => {
-      mentorshipAppointments.push({
-        id: mentor.id,
-        ...mentor.data()
-      } as MentorshipAppointment)
-    })
-    res.status(200).json({ mentorshipAppointments })
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-}
-
-/**
- * Get mentorship appointments by mentor id.
- * 
- * Use for:
- * 1. Admin
- * 2. Mentor in portal
- * 3. Hacker in portal
- * @param req 
- * @param res 
- * @returns 
- */
-export const getMentorshipAppointmentsByMentorId = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    const { mentorId } = req.params;
-    const doc = await db.collection("mentorships")
-      .where("mentorId", "==", mentorId)
-      .get();
-
-    if (doc.empty) {
-      res.status(404).json({ error: "Cannot find mentorships related with the mentor." });
-      return;
-    }
-
-    const mentorships: MentorshipAppointment[] = [];
-    doc.docs.map((mentorship) => {
-      mentorships.push({
-        id: mentorship.id,
-        ...mentorship.data()
-      } as MentorshipAppointment)
-    })
-
-    res.status(200).json(mentorships);
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-};
-
-/**
- * Book mentorship appointment. Use request cookie to get hacker uid.
- * 
- * Use for:
- * 1. Hacker in portal
- * @param req 
- * @param res 
- * @returns 
- */
-export const bookAMentorshipAppointment = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    /**
-     * Validate current user:
-     * 1. User is not valid / not authenticated.
-     * 2. Get current user from db
-     */
-    const uid = req.user?.uid;
-    if (!uid || uid === undefined) {
-      res.status(401).json({
-        status: 401,
-        error: "Cannot get current user uid"
-      })
-      return;
-    }
-
-    const { mentorshipAppointmentId, hackerDescription } = req.body
-
-    // reject if no mentorshipAppointmentId
-    if (mentorshipAppointmentId === undefined || !mentorshipAppointmentId) {
-      res.status(400).json({
-        status: 400,
-        error: "mentorshipAppointmentId is required in body"
-      })
-      return
-    }
-
-    /**
-     * Validation:
-     * 1. Reject if the mentorship appointment does not exist in db
-     * 2. Reject if the mentorship is already booked
-     */
-    const mentorshipAppointmentDoc = await db.collection("mentorships").doc(mentorshipAppointmentId)
-    const mentorshipAppointmentSnap = await mentorshipAppointmentDoc.get()
-    if (!mentorshipAppointmentSnap.exists) {
-      res.status(400).json({
-        status: 400,
-        error: "Mentorship appointment does not exist"
-      })
-      return
-    }
-
-    const mentorshipData: MentorshipAppointment | undefined = mentorshipAppointmentSnap.data() as MentorshipAppointment
-    if (mentorshipData.hackerId) {
-      res.status(400).json({
-        status: 400,
-        error: "Mentorship slot is already booked"
-      })
-      return
-    }
-
-    /**
-     * Book the mentorship slot
-     * 1. Update the hackerId for the document
-     */
-    const updatedMentorshipAppointment = {
-      hackerId: uid,
-      hackerDescription: hackerDescription,
-      ...mentorshipData
-    }
-    await mentorshipAppointmentDoc.update(updatedMentorshipAppointment)
-    res.status(200).json({
-      status: 200,
-      data: "Successfuly booked mentorship slot"
-    })
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message })
+    functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message}`)
+    return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
 
 
-/**
- * Get the list of my mentorship appointments.
- * If user is mentor, by default will return his appointment.
- * Use request cookie to get uid.
- * 
- * Use for:
- * 1. Mentor in portal
- * 2. Hacker in portal
- * 
- * @param req.query.upcomingOnly boolean : If or not only fetches upcoming only.
- * @param req.query.recentOnly boolean : If or not only fetches recent only.
- */
 
-export const getMyMentorshipAppointments = async (
-  req: Request,
-  res: Response
-): Promise<void> => {
-  try {
-    // 1. Validate User
-    const uid = req.user?.uid;
-    if (!uid) {
-      res.status(401).json({ status: 401, error: "Cannot get current user uid" });
-      return;
-    }
+// export const getMentor = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   const { mentorId } = req.params;
+//   try {
+//     /**
+//      * Validate request:
+//      * 1. Mentor id is not in params
+//      */
+//     if (!mentorId) {
+//       res.status(400).json({
+//         status: 400,
+//         error: "Mentor id is required"
+//       })
+//       return;
+//     }
 
-    const currentUserSnap = await db.collection("users").doc(uid).get();
-    if (!currentUserSnap.exists) {
-      res.status(400).json({ status: 400, error: "User not found" });
-      return;
-    }
+//     /**
+//      * Process request
+//      * 1. Find mentor in db
+//      */
+//     const mentorDoc = await db.collection("users").doc(mentorId).get()
+//     if (!mentorDoc.exists) {
+//       res.status(404).json({
+//         status: 404,
+//         error: "Cannot find mentor with the given mentor id"
+//       })
+//       return;
+//     }
+//     const mentorData = mentorDoc.data()
 
-    const currentUserData = currentUserSnap.data() as FirestoreMentor | User;
-    const upcomingOnly = req.query.upcomingOnly === 'true';
-    const recentOnly = req.query.recentOnly === 'true';
+//     if (mentorData) {
+//       const trimmedData: FirestoreMentor = {
+//         "id": mentorData.id,
+//         "email": mentorData.email,
+//         "name": mentorData.name,
+//         "intro": mentorData.intro,
+//         "specialization": mentorData.specialization,
+//         "mentor": mentorData.mentor,
+//         "discordUsername": mentorData.discordUsername
+//       }
+//       res.status(200).json({
+//         status: 200,
+//         data: trimmedData
+//       })
+//     } else {
+//       res.status(200).json({
+//         status: 200,
+//         data: {}
+//       })
+//     }
+//   } catch (error) {
+//     res.status(500).json({ error: (error as Error).message })
+//   }
+// }
 
-    // 2. Build Query Dynamically
-    let query = db.collection("mentorships");
+// /**
+//  * Get all mentorship appointments.
+//  * 
+//  * To be used in admin.
+//  * @param req 
+//  * @param res 
+//  */
+// export const getMentorshipAppointments = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   const mentorshipAppointments: MentorshipAppointment[] = [];
 
-    if (isMentor(currentUserData)) {
-      query = query.where("mentorId", "==", uid) as CollectionReference<DocumentData>;
-    } else {
-      query = query.where("hackerId", "==", uid) as CollectionReference<DocumentData>;;
-    }
+//   try {
+//     const snapshot = await db.collection('mentorships')
+//       .where("mentor", "==", true)
+//       .get()
+//     snapshot.docs.map((mentor) => {
+//       mentorshipAppointments.push({
+//         id: mentor.id,
+//         ...mentor.data()
+//       } as MentorshipAppointment)
+//     })
+//     res.status(200).json({ mentorshipAppointments })
+//   } catch (error) {
+//     res.status(500).json({ error: (error as Error).message });
+//   }
+// }
 
-    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
-    if (upcomingOnly) {
-      query = query.where("startTime", ">=", currentTimeSeconds) as CollectionReference<DocumentData>;
-    } else if (recentOnly) {
-      query = query.where("startTime", "<=", currentTimeSeconds) as CollectionReference<DocumentData>;
-    }
+// /**
+//  * Get mentorship appointments by mentor id.
+//  * 
+//  * Use for:
+//  * 1. Admin
+//  * 2. Mentor in portal
+//  * 3. Hacker in portal
+//  * @param req 
+//  * @param res 
+//  * @returns 
+//  */
+// export const getMentorshipAppointmentsByMentorId = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     const { mentorId } = req.params;
+//     const doc = await db.collection("mentorships")
+//       .where("mentorId", "==", mentorId)
+//       .get();
 
-    // 3. Execute Query and Send Response
-    const snapshot = await query.orderBy("startTime", "asc").get();
+//     if (doc.empty) {
+//       res.status(404).json({ error: "Cannot find mentorships related with the mentor." });
+//       return;
+//     }
 
-    const mentorshipAppointments = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as MentorshipAppointment[];
+//     const mentorships: MentorshipAppointment[] = [];
+//     doc.docs.map((mentorship) => {
+//       mentorships.push({
+//         id: mentorship.id,
+//         ...mentorship.data()
+//       } as MentorshipAppointment)
+//     })
 
-    res.status(200).json({
-      status: 200,
-      data: mentorshipAppointments,
-    });
-  } catch (error) {
-    res.status(500).json({ error: (error as Error).message });
-  }
-};
+//     res.status(200).json(mentorships);
+//   } catch (error) {
+//     res.status(500).json({ error: (error as Error).message });
+//   }
+// };
 
-/**
- * 
- * @param data 
- * @returns 
- */
-function isMentor(data: FirestoreMentor | User): data is FirestoreMentor {
-  return 'mentor' in data;
-}
+// /**
+//  * Book mentorship appointment. Use request cookie to get hacker uid.
+//  * 
+//  * Use for:
+//  * 1. Hacker in portal
+//  * @param req 
+//  * @param res 
+//  * @returns 
+//  */
+// export const bookAMentorshipAppointment = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     /**
+//      * Validate current user:
+//      * 1. User is not valid / not authenticated.
+//      * 2. Get current user from db
+//      */
+//     const uid = req.user?.uid;
+//     if (!uid || uid === undefined) {
+//       res.status(401).json({
+//         status: 401,
+//         error: "Cannot get current user uid"
+//       })
+//       return;
+//     }
+
+//     const { mentorshipAppointmentId, hackerDescription } = req.body
+
+//     // reject if no mentorshipAppointmentId
+//     if (mentorshipAppointmentId === undefined || !mentorshipAppointmentId) {
+//       res.status(400).json({
+//         status: 400,
+//         error: "mentorshipAppointmentId is required in body"
+//       })
+//       return
+//     }
+
+//     /**
+//      * Validation:
+//      * 1. Reject if the mentorship appointment does not exist in db
+//      * 2. Reject if the mentorship is already booked
+//      */
+//     const mentorshipAppointmentDoc = await db.collection("mentorships").doc(mentorshipAppointmentId)
+//     const mentorshipAppointmentSnap = await mentorshipAppointmentDoc.get()
+//     if (!mentorshipAppointmentSnap.exists) {
+//       res.status(400).json({
+//         status: 400,
+//         error: "Mentorship appointment does not exist"
+//       })
+//       return
+//     }
+
+//     const mentorshipData: MentorshipAppointment | undefined = mentorshipAppointmentSnap.data() as MentorshipAppointment
+//     if (mentorshipData.hackerId) {
+//       res.status(400).json({
+//         status: 400,
+//         error: "Mentorship slot is already booked"
+//       })
+//       return
+//     }
+
+//     /**
+//      * Book the mentorship slot
+//      * 1. Update the hackerId for the document
+//      */
+//     const updatedMentorshipAppointment = {
+//       hackerId: uid,
+//       hackerDescription: hackerDescription,
+//       ...mentorshipData
+//     }
+//     await mentorshipAppointmentDoc.update(updatedMentorshipAppointment)
+//     res.status(200).json({
+//       status: 200,
+//       data: "Successfuly booked mentorship slot"
+//     })
+//   } catch (error) {
+//     res.status(500).json({ error: (error as Error).message })
+//   }
+// }
+
+
+// /**
+//  * Get the list of my mentorship appointments.
+//  * If user is mentor, by default will return his appointment.
+//  * Use request cookie to get uid.
+//  * 
+//  * Use for:
+//  * 1. Mentor in portal
+//  * 2. Hacker in portal
+//  * 
+//  * @param req.query.upcomingOnly boolean : If or not only fetches upcoming only.
+//  * @param req.query.recentOnly boolean : If or not only fetches recent only.
+//  */
+
+// export const getMyMentorshipAppointments = async (
+//   req: Request,
+//   res: Response
+// ): Promise<void> => {
+//   try {
+//     // 1. Validate User
+//     const uid = req.user?.uid;
+//     if (!uid) {
+//       res.status(401).json({ status: 401, error: "Cannot get current user uid" });
+//       return;
+//     }
+
+//     const currentUserSnap = await db.collection("users").doc(uid).get();
+//     if (!currentUserSnap.exists) {
+//       res.status(400).json({ status: 400, error: "User not found" });
+//       return;
+//     }
+
+//     const currentUserData = currentUserSnap.data() as FirestoreMentor | User;
+//     const upcomingOnly = req.query.upcomingOnly === 'true';
+//     const recentOnly = req.query.recentOnly === 'true';
+
+//     // 2. Build Query Dynamically
+//     let query = db.collection("mentorships");
+
+//     if (isMentor(currentUserData)) {
+//       query = query.where("mentorId", "==", uid) as CollectionReference<DocumentData>;
+//     } else {
+//       query = query.where("hackerId", "==", uid) as CollectionReference<DocumentData>;;
+//     }
+
+//     const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+//     if (upcomingOnly) {
+//       query = query.where("startTime", ">=", currentTimeSeconds) as CollectionReference<DocumentData>;
+//     } else if (recentOnly) {
+//       query = query.where("startTime", "<=", currentTimeSeconds) as CollectionReference<DocumentData>;
+//     }
+
+//     // 3. Execute Query and Send Response
+//     const snapshot = await query.orderBy("startTime", "asc").get();
+
+//     const mentorshipAppointments = snapshot.docs.map((doc) => ({
+//       id: doc.id,
+//       ...doc.data(),
+//     })) as MentorshipAppointment[];
+
+//     res.status(200).json({
+//       status: 200,
+//       data: mentorshipAppointments,
+//     });
+//   } catch (error) {
+//     res.status(500).json({ error: (error as Error).message });
+//   }
+// };
+
+// /**
+//  * 
+//  * @param data 
+//  * @returns 
+//  */
+// function isMentor(data: FirestoreMentor | User): data is FirestoreMentor {
+//   return 'mentor' in data;
+// }

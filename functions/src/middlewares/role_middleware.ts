@@ -8,7 +8,6 @@ export const isMentor = async (
   next: NextFunction,
 ) => {
   try {
-    // @ts-ignore
     const sessionCookie = req.cookies.__session;
     const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
     const userIsMentor = decodedClaims.mentor === true;
@@ -18,7 +17,6 @@ export const isMentor = async (
         error: "Forbidden: Insufficient permissions",
       });
     }
-    // @ts-ignore
     req.user = decodedClaims;
     return next();
   } catch (error) {
