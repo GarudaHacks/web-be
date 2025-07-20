@@ -1,7 +1,12 @@
 import express, { Request, Response } from "express";
-import { bookAMentorshipAppointment, getMentor, getMentors, getMentorshipAppointmentsByMentorId, getMentorshipConfig, getMyMentorshipAppointments } from "../controllers/mentorship_controller";
+import { bookAMentorshipAppointment, getMentor, getMentors, getMentorshipAppointmentsByMentorId, getMentorshipConfig, getMyMentorshipAppointments, mentorGetMyMentorships } from "../controllers/mentorship_controller";
+import { isMentor } from "../middlewares/role_middleware";
 
 const router = express.Router();
+
+// ****FOR MENTORS ONLY****
+// @ts-ignore
+router.get("/mentor/my-mentorships", isMentor, (req: Request, res: Response) => mentorGetMyMentorships(req, res))
 
 router.get("/config", (req: Request, res: Response) => getMentorshipConfig(req, res))
 router.get("/mentors", (req: Request, res: Response) => getMentors(req, res))

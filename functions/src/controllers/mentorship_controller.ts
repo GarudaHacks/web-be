@@ -3,16 +3,19 @@ import { FirestoreMentor, MentorshipAppointment } from "../models/mentorship";
 import { Request, Response } from "express";
 import { User } from "../models/user";
 import { DateTime } from 'luxon';
-import { MentorshipConfig } from "../types/config";
 import { CollectionReference, DocumentData } from "firebase-admin/firestore";
+import { MentorshipConfig } from "../types/config";
 
+/**
+ * Get mentorship config.
+ */
 export const getMentorshipConfig = async (
   req: Request,
   res: Response
 ): Promise<void> => {
   try {
     const mentorshipConfigSnapshot = await db.collection("config").doc("mentorshipConfig").get()
-    const mentorshipConfigData = mentorshipConfigSnapshot.data()
+    const mentorshipConfigData = mentorshipConfigSnapshot.data() as MentorshipConfig
 
     if (!mentorshipConfigSnapshot.exists || mentorshipConfigData === undefined) {
       res.status(400).json({
@@ -25,6 +28,61 @@ export const getMentorshipConfig = async (
       status: 200,
       data: mentorshipConfigData
     })
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message })
+  }
+}
+
+
+/********************
+ * MENTOR ENDPOINTS *
+ ********************/
+export const mentorGetMyMentorships = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    // 1. Get user
+    const uid = req.user?.uid!
+
+    // available query params
+    const {
+      upcomingOnly,
+      recentOnly,
+      isBooked,
+      isAvailable,
+    } = req.query;
+
+    // 2. Build Query Dynamically
+    let query = db.collection("mentorships");
+
+    query = query.where("mentorId", "==", uid) as CollectionReference<DocumentData>;
+
+    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+    if (upcomingOnly) {
+      query = query.where("startTime", ">=", currentTimeSeconds) as CollectionReference<DocumentData>;
+    } else if (recentOnly) {
+      query = query.where("startTime", "<=", currentTimeSeconds) as CollectionReference<DocumentData>;
+    }
+
+    if (isBooked) {
+      query = query.where("hackerId", "!=", null) as CollectionReference<DocumentData>;
+    } else if (isAvailable) {
+      query = query.where("hackerId", "==", null) as CollectionReference<DocumentData>;
+    }
+
+    // 3. Execute Query and Send Response
+    const snapshot = await query.orderBy("startTime", "asc").get();
+
+    const mentorshipAppointments = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as MentorshipAppointment[];
+
+    res.status(200).json({
+      status: 200,
+      data: mentorshipAppointments,
+    });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message })
   }
