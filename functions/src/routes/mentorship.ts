@@ -4,11 +4,12 @@ import { isMentor } from "../middlewares/role_middleware";
 
 const router = express.Router();
 
+router.get("/config", (req: Request, res: Response) => getMentorshipConfig(req, res))
+
 // ****FOR MENTORS ONLY****
 // @ts-ignore
 router.get("/mentor/my-mentorships", isMentor, (req: Request, res: Response) => mentorGetMyMentorships(req, res))
 
-router.get("/config", (req: Request, res: Response) => getMentorshipConfig(req, res))
 router.get("/mentors", (req: Request, res: Response) => getMentors(req, res))
 router.get("/mentors/:mentorId", (req: Request, res: Response) => getMentor(req, res))
 router.get("/mentorships/:mentorId", (req: Request, res: Response) => getMentorshipAppointmentsByMentorId(req, res))
