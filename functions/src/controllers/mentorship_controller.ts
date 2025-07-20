@@ -186,10 +186,21 @@ export const hackerGetMentors = async (
   res: Response
 ) => {
   try {
+    const { limit } = req.query
+
     const allMentors: FirestoreMentor[] = [];
-    const snapshot = await db.collection('users')
+    let query = db.collection('users')
       .where("mentor", "==", true)
-      .get()
+
+    if (limit) {
+      const numericLimit = parseInt(limit as string, 10);
+      if (!isNaN(numericLimit) && numericLimit > 0) {
+        query = query.limit(numericLimit);
+      }
+    }
+
+    const snapshot = await query.get()
+
     snapshot.docs.map((mentor) => {
       allMentors.push({
         id: mentor.id,

@@ -25,7 +25,7 @@ router.post("/mentor/my-mentorships/:id", isMentor, (req: Request, res: Response
 );
 
 // ****FOR HACKERS ONLY****
-router.get("/hackers", async (req: Request, res: Response) => { 
+router.get("/hacker/mentors", async (req: Request, res: Response) => { 
     await hackerGetMentors(req, res) 
 });
 // router.get("/mentors", (req: Request, res: Response) => getMentors(req, res))
