@@ -404,13 +404,13 @@ export const hackerBookMentorships = async (
     return res.status(200).json({ success: true, message: 'Mentorships booked successfully.' });
   } catch (error) {
     const err = error as Error
-    
+
     if (err.message.includes('mentorship slots could not be found')) {
-      return res.status(400).json({error: "Mentorship slot(s) could not be found"})
+      return res.status(400).json({ error: "Mentorship slot(s) could not be found" })
     } else if (err.message.includes('already booked')) {
-      return res.status(400).json({error: "Mentorship slot(s) are already booked"})
+      return res.status(400).json({ error: "Mentorship slot(s) are already booked" })
     } else if (err.message.includes('too soon to book')) {
-      return res.status(400).json({error: "Cannot book less than 30 mins before the mentoring schedule. Please choose another mentorship slot!"})
+      return res.status(400).json({ error: "Cannot book less than 30 mins before the mentoring schedule. Please choose another mentorship slot!" })
     }
 
     functions.logger.error(`Error when trying hackerBookMentorships: ${(error as Error).message}`)
@@ -424,12 +424,12 @@ export const hackerCancelMentorship = async (
   try {
     const uid = req.user?.uid
     if (!uid) {
-      return res.status(401).json({error: "Unauthorized"})
+      return res.status(401).json({ error: "Unauthorized" })
     }
 
     const { id } = req.body;
     if (!id) {
-      return res.status(400).json({error: "id must be in the argument"})
+      return res.status(400).json({ error: "id must be in the argument" })
     }
 
     // Validate
@@ -438,11 +438,11 @@ export const hackerCancelMentorship = async (
     const mentorshipSnapshot = await db.collection(MENTORSHIPS).doc(id).get()
     const mentorshipData = mentorshipSnapshot.data()
     if (!mentorshipSnapshot.exists || !mentorshipData) {
-      return res.status(404).json({error: "Cannot find mentorship with the given id"})
+      return res.status(404).json({ error: "Cannot find mentorship with the given id" })
     }
-    
+
     if (mentorshipData.hackerId !== uid) {
-      return res.status(401).json({error: "Unauthorized"})
+      return res.status(401).json({ error: "Unauthorized" })
     }
 
     await db.collection(MENTORSHIPS).doc(id).update({
@@ -453,10 +453,53 @@ export const hackerCancelMentorship = async (
       offlineLocation: FieldValue.delete(),
     })
 
-    res.status(200).json({message: "Mentorship has been canceled."})
+    res.status(200).json({ message: "Mentorship has been canceled." })
   } catch (error) {
     functions.logger.error(`Error when trying hackerCancelMentorship: ${(error as Error).message}`)
     return res.status(500).json({ error: "An unexpected error occurred." });
+  }
+}
+
+
+export const hackerGetMyMentorships = async (
+  req: Request, res: Response
+) => {
+  try {
+    const uid = req.user?.uid
+    if (!uid) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
+    // available query params
+    const {
+      upcomingOnly,
+      recentOnly
+    } = req.query;
+
+    let query: CollectionReference | DocumentData = db.collection(MENTORSHIPS);
+
+    query = query.where(HACKER_ID, "==", uid);
+
+    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+    if (upcomingOnly === 'true') {
+      query = query.where(START_TIME, ">=", currentTimeSeconds);
+    } else if (recentOnly === 'true') {
+      query = query.where(START_TIME, "<=", currentTimeSeconds);
+    }
+
+    const snapshot = await query.orderBy(START_TIME, "asc").get();
+
+    let mentorships = snapshot.docs.map((doc: any) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as MentorshipAppointment[];
+
+    return res.status(200).json({
+      data: mentorships,
+    });
+  } catch (error) {
+    functions.logger.error(`Error when trying hackerGetMyMentorships: ${(error as Error).message}`)
+    return res.status(500).json({ error: (error as Error).message })
   }
 }
 
