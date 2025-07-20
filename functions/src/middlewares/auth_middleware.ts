@@ -32,16 +32,13 @@ export const validateSessionCookie = async (
     return next();
   }
 
-  functions.logger.log(
-    "Checking if request is authorized with session cookies"
-  );
-
   const sessionCookie = extractSessionCookieFromCookie(req);
   // Check for session cookie
   if (!sessionCookie) {
+    functions.logger.error("No session cookie found:", req)
     res.status(401).json({
       status: 401,
-      error: "No session cookie found",
+      error: "Unauthorized",
     });
     return;
   }
@@ -50,16 +47,12 @@ export const validateSessionCookie = async (
       sessionCookie,
       true
     );
-    functions.logger.log(
-      "Session cookie correctly decoded",
-      decodedSessionCookie
-    );
     req.user = decodedSessionCookie;
     return next();
   } catch (error) {
     functions.logger.error("Error while verifying session cookie:", error);
-    res.status(401).json({
-      status: 401,
+    res.status(500).json({
+      status: 500,
       error: "Error while verifying session cookie",
     });
   }
