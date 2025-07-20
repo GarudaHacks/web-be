@@ -134,7 +134,6 @@ export const mentorPutMyMentorship = async (
 ) => {
   try {
     const { id } = req.params
-    console.log("I WAS HIT")
 
     // 1. Validate id is in param
     if (!id) {
@@ -213,6 +212,31 @@ export const hackerGetMentors = async (
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
+
+export const hackerGetMentor = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { id } = req.params;
+
+    // 1. Validate id
+    const snapshot = await db.collection(USERS).doc(id).get()
+    if (!snapshot.exists) {
+      return res.status(400).json({
+        error: "Cannot find mentor"
+      })
+    }
+
+    const data = snapshot.data()
+
+    return res.status(200).json({data: data})
+  } catch (error) {
+    functions.logger.error(`Error when trying hackerGetMentor: ${(error as Error).message}`)
+    return res.status(500).json({ error: "An unexpected error occurred." });
+  }
+}
+
 
 
 export const getMentor = async (
