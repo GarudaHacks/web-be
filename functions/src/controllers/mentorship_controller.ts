@@ -97,7 +97,7 @@ export const mentorGetMyMentorship = async (
 ): Promise<void> => {
   try {
     const { id } = req.params
-    
+
     // 1. Validate id is in param
     if (!id) {
       res.status(400).json({
@@ -121,6 +121,56 @@ export const mentorGetMyMentorship = async (
   } catch (error) {
     functions.logger.error(`Error when trying mentorGetMyMentorship: ${(error as Error).message}`)
     res.status(500).json({ error: (error as Error).message })
+  }
+}
+
+export const mentorPutMyMentorship = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { id } = req.params
+    console.log("I WAS HIT")
+
+    // 1. Validate id is in param
+    if (!id) {
+      res.status(400).json({
+        error: "id is required"
+      })
+      return;
+    }
+
+    const {
+      mentorNotes,
+      mentorMarkAsDone,
+      mentorMarkAsAfk
+    } = req.body
+
+    const payload: { [key: string]: any } = {};
+    if (mentorNotes !== undefined) {
+      payload.mentorNotes = mentorNotes;
+    }
+    if (mentorMarkAsDone !== undefined) {
+      payload.mentorMarkAsDone = mentorMarkAsDone;
+    }
+    if (mentorMarkAsAfk !== undefined) {
+      payload.mentorMarkAsAfk = mentorMarkAsAfk;
+    }
+
+    if (Object.keys(payload).length === 0) {
+      return res.status(400).json({ error: "No fields to update were provided." });
+    }
+
+    db.collection(MENTORSHIPS).doc(id);
+
+    return res.status(200).json({
+      message: "Success updated"
+    });
+  } catch (error: any) {
+    if (error.code === 5) {
+      return res.status(404).json({ error: "Mentorship with that ID was not found." });
+    }
+    return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
 

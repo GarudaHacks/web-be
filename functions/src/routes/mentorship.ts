@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { bookAMentorshipAppointment, getMentor, getMentors, getMentorshipAppointmentsByMentorId, getMentorshipConfig, getMyMentorshipAppointments, mentorGetMyMentorship, mentorGetMyMentorships } from "../controllers/mentorship_controller";
+import { bookAMentorshipAppointment, getMentor, getMentors, getMentorshipAppointmentsByMentorId, getMentorshipConfig, getMyMentorshipAppointments, mentorGetMyMentorship, mentorGetMyMentorships, mentorPutMyMentorship } from "../controllers/mentorship_controller";
 import { isMentor } from "../middlewares/role_middleware";
 
 const router = express.Router();
@@ -9,6 +9,8 @@ router.get("/config", (req: Request, res: Response) => getMentorshipConfig(req, 
 // ****FOR MENTORS ONLY****
 // @ts-ignore
 router.get("/mentor/my-mentorships/:id", isMentor, (req: Request, res: Response) => mentorGetMyMentorship(req, res))
+// @ts-ignore
+router.post("/mentor/my-mentorships/:id", isMentor, (req: Request, res: Response) => mentorPutMyMentorship(req, res))
 // @ts-ignore
 router.get("/mentor/my-mentorships", isMentor, (req: Request, res: Response) => mentorGetMyMentorships(req, res))
 
