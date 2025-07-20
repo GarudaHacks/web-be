@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { getMentorshipConfig, hackerGetMentor, hackerGetMentors, hackerGetMentorSchedule, hackerGetMentorSchedules, mentorGetMyMentorship, mentorGetMyMentorships, mentorPutMyMentorship } from "../controllers/mentorship_controller";
+import { getMentorshipConfig, hackerBookMentorships, hackerGetMentor, hackerGetMentors, hackerGetMentorSchedule, hackerGetMentorSchedules, mentorGetMyMentorship, mentorGetMyMentorships, mentorPutMyMentorship } from "../controllers/mentorship_controller";
 import { isMentor } from "../middlewares/role_middleware";
 
 const router = express.Router();
@@ -34,6 +34,9 @@ router.get("/hacker/mentorships", async (req: Request, res: Response) => {
 router.get("/hacker/mentorships/:id", async (req: Request, res: Response) => {
   await hackerGetMentorSchedule(req, res)
 });
+router.post("/hacker/mentorships/book", async (req: Request, res: Response) => {
+  await hackerBookMentorships(req, res)
+})
 
 
 // router.get("/mentors", (req: Request, res: Response) => getMentors(req, res))

@@ -3,12 +3,13 @@ import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAs
 import { Request, Response } from "express";
 import { User } from "../models/user";
 import { DateTime } from 'luxon';
-import { CollectionReference, DocumentData } from "firebase-admin/firestore";
+import { CollectionReference, DocumentData, FieldPath } from "firebase-admin/firestore";
 import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
 
 const MENTORSHIPS = "mentorships";
 const MENTOR_ID = "mentorId";
+const HACKER_ID = "hackerId";
 const USERS = "users";
 const START_TIME = "startTime";
 
@@ -295,7 +296,7 @@ export const hackerGetMentorSchedule = async (
     const snapshot = await db.collection(MENTORSHIPS).doc(id).get()
     const data = snapshot.data()
     if (!snapshot.exists || !data) {
-      return res.status(404).json({error: "Cannot find mentorship"})
+      return res.status(404).json({ error: "Cannot find mentorship" })
     }
 
     const mentorshipAppointmentResponseAsHacker: MentorshipAppointmentResponseAsHacker = {
@@ -303,15 +304,115 @@ export const hackerGetMentorSchedule = async (
       startTime: data.startTime,
       endTime: data.endTime,
       mentorId: data.mentorId,
-      hackerId: data.hackerId
+      hackerId: data.hackerId,
+      location: data.location,
     }
-    return res.status(200).json({data: mentorshipAppointmentResponseAsHacker})
+    return res.status(200).json({ data: mentorshipAppointmentResponseAsHacker })
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message}`)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
 
+interface BookMentorshipRequest {
+  id: string;
+  hackerId: string;
+  hackerName: string;
+  teamName: string;
+  hackerDescription: string;
+  offlineLocation?: string;
+}
+
+export const hackerBookMentorships = async (
+  req: Request,
+  res: Response
+) => {
+  const MAX_CONCURRENT_BOOKINGS = 2
+  try {
+    const { mentorships }: { mentorships: BookMentorshipRequest[] } = req.body;
+
+    if (!mentorships || !Array.isArray(mentorships) || mentorships.length === 0) {
+      return res.status(400).json({ error: 'Mentorships must be a non-empty array.' });
+    }
+
+    if (mentorships.length > MAX_CONCURRENT_BOOKINGS) {
+      return res.status(400).json({ error: `Cannot book more than ${MAX_CONCURRENT_BOOKINGS} slots at a time.` });
+    }
+
+    const hackerId = mentorships[0].hackerId;
+    for (const mentorship of mentorships) {
+      if (!mentorship.id || !mentorship.hackerId || !mentorship.hackerName || !mentorship.teamName || !mentorship.hackerDescription) {
+        return res.status(400).json({ error: 'Each mentorship must include id, hackerId, hackerName, teamName, and hackerDescription.' });
+      }
+      if (mentorship.hackerId !== hackerId) {
+        return res.status(400).json({ error: 'All mentorship bookings in a single request must be for the same hacker.' });
+      }
+    }
+
+    const mentorshipsCollection = db.collection(MENTORSHIPS);
+    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+    const existingBookingsQuery = mentorshipsCollection
+      .where(HACKER_ID, '==', hackerId)
+      .where(START_TIME, '>', currentTimeSeconds);
+
+    const existingBookingsSnapshot = await existingBookingsQuery.get();
+
+    if (existingBookingsSnapshot.size + mentorships.length > MAX_CONCURRENT_BOOKINGS) {
+      return res.status(400).json({ error: `This request would exceed the maximum of ${MAX_CONCURRENT_BOOKINGS} active bookings.` });
+    }
+
+    await db.runTransaction(async (transaction) => {
+      const mentorshipIds = mentorships.map((m) => m.id);
+
+      const requestedMentorshipsRef = mentorshipsCollection.where(FieldPath.documentId(), 'in', mentorshipIds);
+      const requestedMentorshipsSnapshot = await transaction.get(requestedMentorshipsRef);
+
+      if (requestedMentorshipsSnapshot.size !== mentorships.length) {
+        throw new Error("One or more mentorship slots could not be found.");
+      }
+
+      const thirtyMinsFromNow = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger()) + (30 * 60);
+
+      for (const doc of requestedMentorshipsSnapshot.docs) {
+        const data = doc.data();
+
+        if (data.hackerId) {
+          throw new Error(`Mentorship slot ${doc.id} is already booked.`);
+        }
+
+        if (data.startTime < thirtyMinsFromNow) {
+          throw new Error(`Mentorship slot ${doc.id} is starting too soon to book.`);
+        }
+      }
+
+      for (const mentorshipRequest of mentorships) {
+        const docRef = mentorshipsCollection.doc(mentorshipRequest.id);
+        transaction.update(docRef, {
+          hackerId: mentorshipRequest.hackerId,
+          hackerName: mentorshipRequest.hackerName,
+          teamName: mentorshipRequest.teamName,
+          hackerDescription: mentorshipRequest.hackerDescription,
+          offlineLocation: mentorshipRequest.offlineLocation || null,
+        });
+      }
+    });
+
+    return res.status(200).json({ success: true, message: 'Mentorships booked successfully.' });
+  } catch (error) {
+    const err = error as Error
+    
+    if (err.message.includes('mentorship slots could not be found')) {
+      return res.status(400).json({error: "Mentorship slot(s) could not be found"})
+    } else if (err.message.includes('already booked')) {
+      return res.status(400).json({error: "Mentorship slot(s) are already booked"})
+    } else if (err.message.includes('too soon to book')) {
+      return res.status(400).json({error: "Cannot book less than 30 mins before the mentoring schedule. Please choose another mentorship slot!"})
+    }
+
+    functions.logger.error(`Error when trying hackerBookMentorships: ${(error as Error).message}`)
+    return res.status(500).json({ error: "An unexpected error occurred." });
+  }
+}
 
 
 // export const getMentor = async (
