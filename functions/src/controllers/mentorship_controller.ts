@@ -230,9 +230,47 @@ export const hackerGetMentor = async (
 
     const data = snapshot.data()
 
-    return res.status(200).json({data: data})
+    return res.status(200).json({ data: data })
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMentor: ${(error as Error).message}`)
+    return res.status(500).json({ error: "An unexpected error occurred." });
+  }
+}
+
+export const hackerGetMentorSchedules = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { mentorId, limit } = req.query
+
+    if (!mentorId) {
+      return res.status(400).json({ error: "mentorId is required as argument" })
+    }
+
+    let query = db.collection(MENTORSHIPS)
+      .where(MENTOR_ID, "==", mentorId)
+
+    if (limit) {
+      const numericLimit = parseInt(limit as string, 10);
+      if (!isNaN(numericLimit) && numericLimit > 0) {
+        query = query.limit(numericLimit);
+      }
+    }
+
+    const snapshot = await query.get()
+
+    const allSchedules = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      startTime: doc.data().startTime,
+      endTime: doc.data().endTime,
+      mentorId: doc.data().mentorId,
+      hackerId: doc.data().hackerId,
+    })) as MentorshipAppointmentResponseAsHacker[];
+
+    return res.status(200).json({ data: allSchedules });
+  } catch (error) {
+    functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message}`)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
