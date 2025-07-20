@@ -3,7 +3,7 @@ import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAs
 import { Request, Response } from "express";
 import { User } from "../models/user";
 import { DateTime } from 'luxon';
-import { CollectionReference, DocumentData, FieldPath } from "firebase-admin/firestore";
+import { CollectionReference, DocumentData, FieldPath, FieldValue } from "firebase-admin/firestore";
 import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
 
@@ -167,7 +167,11 @@ export const mentorPutMyMentorship = async (
       return res.status(400).json({ error: "No fields to update were provided." });
     }
 
-    db.collection(MENTORSHIPS).doc(id);
+    await db.collection(MENTORSHIPS).doc(id).update({
+      mentorNotes: mentorNotes,
+      mentorMarkAsDone: mentorMarkAsDone,
+      mentorMarkAsAfk: mentorMarkAsAfk
+    })
 
     return res.status(200).json({
       message: "Success updated"
@@ -410,6 +414,48 @@ export const hackerBookMentorships = async (
     }
 
     functions.logger.error(`Error when trying hackerBookMentorships: ${(error as Error).message}`)
+    return res.status(500).json({ error: "An unexpected error occurred." });
+  }
+}
+
+export const hackerCancelMentorship = async (
+  req: Request, res: Response
+) => {
+  try {
+    const uid = req.user?.uid
+    if (!uid) {
+      return res.status(401).json({error: "Unauthorized"})
+    }
+
+    const { id } = req.body;
+    if (!id) {
+      return res.status(400).json({error: "id must be in the argument"})
+    }
+
+    // Validate
+    // 1. If mentorship does not exist
+    // 2. If mentorship does not belong to the hacker
+    const mentorshipSnapshot = await db.collection(MENTORSHIPS).doc(id).get()
+    const mentorshipData = mentorshipSnapshot.data()
+    if (!mentorshipSnapshot.exists || !mentorshipData) {
+      return res.status(404).json({error: "Cannot find mentorship with the given id"})
+    }
+    
+    if (mentorshipData.hackerId !== uid) {
+      return res.status(401).json({error: "Unauthorized"})
+    }
+
+    await db.collection(MENTORSHIPS).doc(id).update({
+      hackerId: FieldValue.delete(),
+      hackerName: FieldValue.delete(),
+      teamName: FieldValue.delete(),
+      hackerDescription: FieldValue.delete(),
+      offlineLocation: FieldValue.delete(),
+    })
+
+    res.status(200).json({message: "Mentorship has been canceled."})
+  } catch (error) {
+    functions.logger.error(`Error when trying hackerCancelMentorship: ${(error as Error).message}`)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
