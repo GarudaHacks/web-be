@@ -47,11 +47,4 @@ router.get("/hacker/my-mentorships/:id", async (req: Request, res: Response) => 
   await hackerGetMyMentorship(req, res)
 })
 
-
-// router.get("/mentors", (req: Request, res: Response) => getMentors(req, res))
-// router.get("/mentors/:mentorId", (req: Request, res: Response) => getMentor(req, res))
-// router.get("/mentorships/:mentorId", (req: Request, res: Response) => getMentorshipAppointmentsByMentorId(req, res))
-// router.post("/mentorships", (req: Request, res: Response) => bookAMentorshipAppointment(req, res))
-// router.get("/my-mentorships", (req: Request, res: Response) => getMyMentorshipAppointments(req, res))
-
 export default router;
