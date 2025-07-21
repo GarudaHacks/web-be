@@ -275,6 +275,7 @@ export const hackerGetMentorSchedules = async (
       endTime: doc.data().endTime,
       mentorId: doc.data().mentorId,
       hackerId: doc.data().hackerId,
+      location: doc.data().location,
     })) as MentorshipAppointmentResponseAsHacker[];
 
     return res.status(200).json({ data: allSchedules });
