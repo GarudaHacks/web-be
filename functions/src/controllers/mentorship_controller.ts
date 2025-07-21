@@ -1,7 +1,6 @@
 import { db } from "../config/firebase"
 import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAsHacker } from "../models/mentorship";
 import { Request, Response } from "express";
-import { User } from "../models/user";
 import { DateTime } from 'luxon';
 import { CollectionReference, DocumentData, FieldPath, FieldValue } from "firebase-admin/firestore";
 import { MentorshipConfig } from "../types/config";
@@ -489,7 +488,7 @@ export const hackerGetMyMentorships = async (
 
     const snapshot = await query.orderBy(START_TIME, "asc").get();
 
-    let mentorships = snapshot.docs.map((doc: any) => ({
+    const mentorships = snapshot.docs.map((doc: any) => ({
       id: doc.id,
       ...doc.data(),
     })) as MentorshipAppointment[];
