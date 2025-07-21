@@ -6,6 +6,8 @@ import { CollectionReference, DocumentData, FieldPath, FieldValue } from "fireba
 import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
 
+const CONFIG = "config";
+const MENTORSHIP_CONIFG = "mentorshipConfig";
 const MENTORSHIPS = "mentorships";
 const MENTOR_ID = "mentorId";
 const HACKER_ID = "hackerId";
@@ -336,6 +338,13 @@ export const hackerBookMentorships = async (
       return res.status(401).json({error: "Unauthorized"})
     }
 
+    // Check if mentorship is open
+    const configSnapshot = await db.collection(CONFIG).doc(MENTORSHIP_CONIFG).get()
+    const configData = configSnapshot.data()
+    if (configData && !configData.isMentorshipOpen) {
+      return res.status(400).json({error: "Mentorship is currently closed"})
+    }
+
     const { mentorships }: { mentorships: BookMentorshipRequest[] } = req.body;
 
     if (!mentorships || !Array.isArray(mentorships) || mentorships.length === 0) {
@@ -510,16 +519,20 @@ export const hackerGetMyMentorship = async (
     if (!uid) {
       return res.status(401).json({error: "Unauthorized"})
     }
-
+    
     const { id } = req.params
     if (!id) {
       return res.status(400).json({error: "id is required as argument"})
     }
-
+    
     const snapshot = await db.collection(MENTORSHIPS).doc(id).get()
     const data = snapshot.data()
     if (!snapshot.exists || !data) {
       return res.status(404).json({error: "Cannot find mentorship"})
+    }
+    
+    if (data.mentorId !== uid) {
+      return res.status(401).json({error: "Unauthorized"})
     }
 
     return res.status(200).json({data: data})
