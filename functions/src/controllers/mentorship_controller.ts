@@ -55,6 +55,7 @@ export const mentorGetMyMentorships = async (
 
     // available query params
     const {
+      limit,
       upcomingOnly,
       recentOnly,
       isBooked,
@@ -70,6 +71,13 @@ export const mentorGetMyMentorships = async (
       query = query.where(START_TIME, ">=", currentTimeSeconds);
     } else if (recentOnly === 'true') {
       query = query.where(START_TIME, "<=", currentTimeSeconds);
+    }
+
+    if (limit) {
+      const numericLimit = parseInt(limit as string, 10);
+      if (!isNaN(numericLimit) && numericLimit > 0) {
+        query = query.limit(numericLimit);
+      }
     }
 
     const snapshot = await query.orderBy("startTime", "asc").get();
@@ -457,7 +465,7 @@ export const hackerCancelMentorship = async (
     // handle if booking is aleady 45 mins away
     const fortyFiveMinsFromNow = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger()) + (45 * 60);
     if (mentorshipData.startTime < fortyFiveMinsFromNow) {
-      return res.status(400).json({ error: "Mentorship cannot be canceled less than 45 minutes before schedule."})
+      return res.status(400).json({ error: "Mentorship cannot be canceled less than 45 minutes before schedule." })
     }
 
     await db.collection(MENTORSHIPS).doc(id).update({
