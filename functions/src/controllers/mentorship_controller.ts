@@ -1,5 +1,5 @@
 import { db } from "../config/firebase"
-import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAsHacker } from "../models/mentorship";
+import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAsHacker, MentorshipAppointmentResponseAsMentor } from "../models/mentorship";
 import { Request, Response } from "express";
 import { DateTime } from 'luxon';
 import { CollectionReference, DocumentData, FieldPath, FieldValue } from "firebase-admin/firestore";
@@ -34,6 +34,73 @@ interface MailOptions {
   text: string;
 }
 
+const createMentorshipCancelMailOptions = (
+  mentorEmail: string,
+  mentorName: string,
+  teamName: string,
+  hackerName: string,
+  startDate: string,
+  endDate: string,
+  portalLink: string,
+  duration: number
+): MailOptions => ({
+  from: {
+    name: "Garuda Hacks",
+    address: "no-reply@garudahacks.com"
+  },
+  to: mentorEmail,
+  subject: `Team ${teamName} Just Canceled A Mentorship Session`,
+  html: `
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mentorship Booking Canceled</title>
+  <meta name="color-scheme" content="dark">
+  <meta name="supported-color-schemes" content="dark">
+</head>
+<body
+  style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
+  <div
+    style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+    <h1 style="color: #fff; margin-bottom: 20px; font-size: 20px;">Hi, ${mentorName}</h1>
+    <p style="color: #ff4000; margin-bottom: 25px;">The booking for team ${teamName} <strong>has been canceled</strong>.
+    </p>
+    <div style="border: 1px solid #718096; border-radius: 8px; color: #718096">
+      <div>
+        <h4>Team Name: ${teamName}</h4>
+        <h4>Hacker Name: ${hackerName}</h4>
+      </div>
+
+      <div>
+        <p>${startDate} - ${endDate} (${duration} minutes)</p>
+      </div>
+
+      <div>
+        <a href="${portalLink}"
+          style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">View
+          In Portal</a>
+      </div>
+    </div>
+    <div style="padding-top: 10px;">
+      The cancelation is permissible up to 45 minutes before the scheduled time.
+    </div>
+  </div>
+  <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
+    <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
+    <p style="margin-top: 10px;">
+      <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
+      <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
+    </p>
+  </div>
+</body>
+</html>
+`,
+  text: `Team ${teamName} Just Canceled A Mentorship Session.`
+})
+
 const createMentorshipBookingMailOptions = (
   mentorEmail: string,
   mentorName: string,
@@ -60,40 +127,41 @@ const createMentorshipBookingMailOptions = (
       <meta name="color-scheme" content="dark">
       <meta name="supported-color-schemes" content="dark">
     </head>
-  <body
-    style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-    <div
-      style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-      <h1 style="color: #fff; margin-bottom: 20px; font-size: 20px;">Hi, ${mentorName}</h1>
-      <p style="color: #e2e8f0; margin-bottom: 25px;">A team just booked a mentorship session with you.</p>
+    <body
+      style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
+      <div
+        style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        <h1 style="color: #fff; margin-bottom: 20px; font-size: 20px;">Hi, ${mentorName}<br></h1>
+        <p style="color: #e2e8f0; margin-bottom: 25px;">A team just booked a mentorship session with you.</p>
 
-      <div style="border: 1px solid #718096; border-radius: 8px;">
-        <div>
-          <h4>Team Name ${teamName}</h4>
-          <h4>Hacker Name ${hackerName}</h4>
+        <div style="border: 1px solid #718096; border-radius: 8px;">
+          <div>
+            <h4>Team Name ${teamName}</h4>
+            <h4>Hacker Name ${hackerName}</h4>
+          </div>
+
+          <div>
+            <p>${startDate} - ${endDate} (${duration})</p>
+          </div>
+
+          <div>
+            <p>Click here to view portal.</p>
+            <a href="${portalLink}"
+              style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">View
+              In Portal</a>
+          </div>
         </div>
 
-        <div>
-          <p>${startDate} - ${endDate} (${duration} minutes)</p>
-        </div>
-
-        <div>
-          <p>Click here to view portal.</p>
-          <a href="${portalLink}"
-            style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">View
-            In Portal</a>
-        </div>
       </div>
-    </div>
-    <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-      <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-      <p style="margin-top: 10px;">
-        <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-        <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-      </p>
-    </div>
-  </body>
-  </html>
+      <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
+        <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
+        <p style="margin-top: 10px;">
+          <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
+          <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
+        </p>
+      </div>
+    </body>
+    </html>
   `,
   text: `Team ${teamName} Just Booked A Mentorship Session.`
 })
@@ -111,6 +179,22 @@ const sendMentorshipBookingEmail = async (
   const mailOptions = createMentorshipBookingMailOptions(mentorEmail, mentorName, teamName, hackerName, startDate, endDate, portalLink, duration)
   await transporter.sendMail(mailOptions)
   functions.logger.info("Booking email sent successfuly to:", mentorEmail)
+  functions.logger.info("Booking email sent successfuly to:", mentorEmail)
+}
+
+const sendMentorshipCancelEmail = async (
+  mentorEmail: string,
+  mentorName: string,
+  teamName: string,
+  hackerName: string,
+  startDate: string,
+  endDate: string,
+  portalLink: string,
+  duration: number,
+): Promise<void> => {
+  const mailOptions = createMentorshipCancelMailOptions(mentorEmail, mentorName, teamName, hackerName, startDate, endDate, portalLink, duration)
+  await transporter.sendMail(mailOptions)
+  functions.logger.info("Cancel email sent successfuly to:", mentorEmail)
 }
 
 /**
@@ -598,7 +682,7 @@ export const hackerCancelMentorship = async (
     // 1. If mentorship does not exist
     // 2. If mentorship does not belong to the hacker
     const mentorshipSnapshot = await db.collection(MENTORSHIPS).doc(id).get()
-    const mentorshipData = mentorshipSnapshot.data()
+    const mentorshipData = mentorshipSnapshot.data() as MentorshipAppointmentResponseAsMentor
     if (!mentorshipSnapshot.exists || !mentorshipData) {
       return res.status(404).json({ error: "Cannot find mentorship with the given id" })
     }
@@ -611,6 +695,25 @@ export const hackerCancelMentorship = async (
     const fortyFiveMinsFromNow = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger()) + (45 * 60);
     if (mentorshipData.startTime < fortyFiveMinsFromNow) {
       return res.status(400).json({ error: "Mentorship cannot be canceled less than 45 minutes before schedule." })
+    }
+
+
+    // get mentor data
+    const mentorSnapshot = await db.collection(USERS).doc(mentorshipData.mentorId).get()
+    const mentorData = mentorSnapshot.data()
+
+    if (mentorData && mentorshipData.teamName && mentorshipData.hackerName) {
+      // sendEmail
+      await sendMentorshipCancelEmail(
+        mentorData.email,
+        mentorData.name,
+        mentorshipData.teamName,
+        mentorshipData.hackerName,
+        `${epochToStringDate(mentorshipData.startTime)}`,
+        `${epochToStringDate(mentorshipData.endTime)}`,
+        "https://portal.garudahacks.com",
+        (mentorshipData.endTime - mentorshipData.startTime) / 60
+      )
     }
 
     await db.collection(MENTORSHIPS).doc(id).update({
