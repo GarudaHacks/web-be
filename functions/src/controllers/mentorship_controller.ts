@@ -261,6 +261,13 @@ export const hackerGetMentorSchedules = async (
   try {
     const { mentorId, limit } = req.query
 
+    // Check if mentorship is open
+    const configSnapshot = await db.collection(CONFIG).doc(MENTORSHIP_CONIFG).get()
+    const configData = configSnapshot.data()
+    if (configData && !configData.isMentorshipOpen) {
+      return res.status(400).json({ error: "Mentorship is currently closed" })
+    }
+
     if (!mentorId) {
       return res.status(400).json({ error: "mentorId is required as argument" })
     }
