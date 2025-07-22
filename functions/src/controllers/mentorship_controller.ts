@@ -5,6 +5,9 @@ import { DateTime } from 'luxon';
 import { CollectionReference, DocumentData, FieldPath, FieldValue } from "firebase-admin/firestore";
 import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
+import nodemailer from "nodemailer";
+import { epochToStringDate } from "../utils/date";
+
 
 const CONFIG = "config";
 const MENTORSHIP_CONIFG = "mentorshipConfig";
@@ -13,6 +16,102 @@ const MENTOR_ID = "mentorId";
 const HACKER_ID = "hackerId";
 const USERS = "users";
 const START_TIME = "startTime";
+
+const transporter = nodemailer.createTransport({
+  host: "live.smtp.mailtrap.io",
+  port: 587,
+  auth: {
+    user: process.env.MAILTRAP_USER,
+    pass: process.env.MAILTRAP_PASS,
+  },
+});
+
+interface MailOptions {
+  from: string | { name: string; address: string };
+  to: string;
+  subject: string;
+  html: string;
+  text: string;
+}
+
+const createMentorshipBookingMailOptions = (
+  mentorEmail: string,
+  mentorName: string,
+  teamName: string,
+  hackerName: string,
+  startDate: string,
+  endDate: string,
+  portalLink: string,
+  duration: number,
+): MailOptions => ({
+  from: {
+    name: "Garuda Hacks",
+    address: "no-reply@garudahacks.com"
+  },
+  to: mentorEmail,
+  subject: `Team ${teamName} Just Booked A Mentorship Session`,
+  html: `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Mentorship Booking</title>
+      <meta name="color-scheme" content="dark">
+      <meta name="supported-color-schemes" content="dark">
+    </head>
+  <body
+    style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
+    <div
+      style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+      <h1 style="color: #fff; margin-bottom: 20px; font-size: 20px;">Hi, ${mentorName}</h1>
+      <p style="color: #e2e8f0; margin-bottom: 25px;">A team just booked a mentorship session with you.</p>
+
+      <div style="border: 1px solid #718096; border-radius: 8px;">
+        <div>
+          <h4>Team Name ${teamName}</h4>
+          <h4>Hacker Name ${hackerName}</h4>
+        </div>
+
+        <div>
+          <p>${startDate} - ${endDate} (${duration} minutes)</p>
+        </div>
+
+        <div>
+          <p>Click here to view portal.</p>
+          <a href="${portalLink}"
+            style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">View
+            In Portal</a>
+        </div>
+      </div>
+    </div>
+    <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
+      <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
+      <p style="margin-top: 10px;">
+        <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
+        <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
+      </p>
+    </div>
+  </body>
+  </html>
+  `,
+  text: `Team ${teamName} Just Booked A Mentorship Session.`
+})
+
+const sendMentorshipBookingEmail = async (
+  mentorEmail: string,
+  mentorName: string,
+  teamName: string,
+  hackerName: string,
+  startDate: string,
+  endDate: string,
+  portalLink: string,
+  duration: number,
+): Promise<void> => {
+  const mailOptions = createMentorshipBookingMailOptions(mentorEmail, mentorName, teamName, hackerName, startDate, endDate, portalLink, duration)
+  await transporter.sendMail(mailOptions)
+  functions.logger.info("Booking email sent successfuly to:", mentorEmail)
+}
 
 /**
  * Get mentorship config.
@@ -97,7 +196,7 @@ export const mentorGetMyMentorships = async (
       data: mentorships,
     });
   } catch (error) {
-    functions.logger.error(`Error when trying mentorGetMyMentorships: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying mentorGetMyMentorships: ${(error as Error).message} `)
     return res.status(500).json({ error: (error as Error).message })
   }
 }
@@ -128,7 +227,7 @@ export const mentorGetMyMentorship = async (
       data: snapshot.data()
     })
   } catch (error) {
-    functions.logger.error(`Error when trying mentorGetMyMentorship: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying mentorGetMyMentorship: ${(error as Error).message} `)
     return res.status(500).json({ error: (error as Error).message })
   }
 }
@@ -225,7 +324,7 @@ export const hackerGetMentors = async (
     })
     return res.status(200).json({ data: allMentors })
   } catch (error: any) {
-    functions.logger.error(`Error when trying hackerGetMentors: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerGetMentors: ${(error as Error).message} `)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
@@ -249,7 +348,7 @@ export const hackerGetMentor = async (
 
     return res.status(200).json({ data: data })
   } catch (error) {
-    functions.logger.error(`Error when trying hackerGetMentor: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerGetMentor: ${(error as Error).message} `)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
@@ -295,7 +394,7 @@ export const hackerGetMentorSchedules = async (
 
     return res.status(200).json({ data: allSchedules });
   } catch (error) {
-    functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message} `)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
@@ -330,7 +429,7 @@ export const hackerGetMentorSchedule = async (
     }
     return res.status(200).json({ data: mentorshipAppointmentResponseAsHacker })
   } catch (error) {
-    functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message} `)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
@@ -425,6 +524,45 @@ export const hackerBookMentorships = async (
       }
     });
 
+    for (const mentorship of mentorships) {
+      try {
+        const mentorshipSnap = await db.collection(MENTORSHIPS).doc(mentorship.id).get()
+        if (!mentorshipSnap.exists) {
+          functions.logger.error("Mentorship document not found:", mentorship.id)
+          continue
+        }
+
+        const mentorshipData = mentorshipSnap.data() as MentorshipAppointment
+
+        if (!mentorshipData.mentorId) {
+          functions.logger.error("No mentor ID in mentorship data")
+          continue
+        }
+
+        const mentorSnap = await db.collection(USERS).doc(mentorshipData.mentorId).get()
+        if (!mentorSnap.exists) {
+          functions.logger.error("Mentor not found:", mentorshipData.id)
+          continue
+        }
+
+        const mentorData = mentorSnap.data() as FirestoreMentor
+
+        await sendMentorshipBookingEmail(
+          mentorData.email,
+          mentorData.name,
+          mentorship.teamName,
+          mentorship.hackerName,
+          `${epochToStringDate(mentorshipData.startTime)}`,
+          `${epochToStringDate(mentorshipData.endTime)}`,
+          "https://portal.garudahacks.com",
+          (mentorshipData.endTime - mentorshipData.startTime) / 60
+        )
+        functions.logger.info(`Email sent successfully for mentor ${mentorData.email}:`)
+      } catch (error) {
+        functions.logger.error(`Error when trying to send email for mentorship ${mentorship.id}: ${(error as Error).message}`)
+      }
+    }
+
     return res.status(200).json({ success: true, message: 'Mentorships booked successfully.' });
   } catch (error) {
     const err = error as Error
@@ -437,7 +575,7 @@ export const hackerBookMentorships = async (
       return res.status(400).json({ error: "Cannot book less than 30 mins before the mentoring schedule. Please choose another mentorship slot!" })
     }
 
-    functions.logger.error(`Error when trying hackerBookMentorships: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerBookMentorships: ${(error as Error).message} `)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
@@ -485,7 +623,7 @@ export const hackerCancelMentorship = async (
 
     return res.status(200).json({ message: "Mentorship has been canceled." })
   } catch (error) {
-    functions.logger.error(`Error when trying hackerCancelMentorship: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerCancelMentorship: ${(error as Error).message} `)
     return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }
@@ -528,7 +666,7 @@ export const hackerGetMyMentorships = async (
       data: mentorships,
     });
   } catch (error) {
-    functions.logger.error(`Error when trying hackerGetMyMentorships: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerGetMyMentorships: ${(error as Error).message} `)
     return res.status(500).json({ error: (error as Error).message })
   }
 }
@@ -559,7 +697,7 @@ export const hackerGetMyMentorship = async (
 
     return res.status(200).json({ data: data })
   } catch (error) {
-    functions.logger.error(`Error when trying hackerGetMyMentorship: ${(error as Error).message}`)
+    functions.logger.error(`Error when trying hackerGetMyMentorship: ${(error as Error).message} `)
     return res.status(500).json({ error: (error as Error).message })
   }
 }
