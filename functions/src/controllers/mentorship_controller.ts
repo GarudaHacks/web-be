@@ -387,7 +387,6 @@ export const hackerGetMentors = async (
   try {
     const { limit } = req.query
 
-    const allMentors: FirestoreMentor[] = [];
     let query = db.collection('users')
       .where("mentor", "==", true)
 
@@ -399,13 +398,34 @@ export const hackerGetMentors = async (
     }
 
     const snapshot = await query.get()
+    const allMentors: FirestoreMentor[] = [];
 
-    snapshot.docs.map((mentor) => {
-      allMentors.push({
-        id: mentor.id,
-        ...mentor.data()
-      } as FirestoreMentor)
-    })
+    await Promise.all(
+      snapshot.docs.map(async (mentor) => {
+        try {
+          const mentorshipQuery = db
+            .collection(MENTORSHIPS)
+            .where(MENTOR_ID, '==', mentor.id)
+            .where(HACKER_ID, '==', null);
+
+          const countDoc = await mentorshipQuery.count().get();
+          const mentorshipCount = countDoc.data().count;
+
+          allMentors.push({
+            id: mentor.id,
+            available: mentorshipCount,
+            ...mentor.data(),
+          } as FirestoreMentor);
+        } catch (error: any) {
+          functions.logger.error(`Error fetching availability for mentor ${mentor.id}: ${error.message}`);
+          allMentors.push({
+            id: mentor.id,
+            available: 0,
+            ...mentor.data(),
+          } as FirestoreMentor);
+        }
+      })
+    );
     return res.status(200).json({ data: allMentors })
   } catch (error: any) {
     functions.logger.error(`Error when trying hackerGetMentors: ${(error as Error).message} `)
