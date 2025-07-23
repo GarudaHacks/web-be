@@ -398,32 +398,31 @@ export const hackerGetMentors = async (
     }
 
     const snapshot = await query.get()
-    const allMentors: FirestoreMentor[] = [];
+    const allMentors: {
+      id?: string;
+      email: string;
+      name: string;
+      mentor: boolean;
+      specialization: string;
+      discordUsername: string;
+      intro: string; // introduction given by mentor
+
+    }[] = [];
 
     await Promise.all(
       snapshot.docs.map(async (mentor) => {
-        try {
-          const mentorshipQuery = db
-            .collection(MENTORSHIPS)
-            .where(MENTOR_ID, '==', mentor.id)
-            .where(HACKER_ID, '==', null);
+        const mentorData = mentor.data();
 
-          const countDoc = await mentorshipQuery.count().get();
-          const mentorshipCount = countDoc.data().count;
+        allMentors.push({
+          id: mentor.id,
+          email: mentorData.email,
+          name: mentorData.name,
+          mentor: mentorData.mentor,
+          specialization: mentorData.specialization,
+          discordUsername: mentorData.discordUsername,
+          intro: mentorData.intro,
+        });
 
-          allMentors.push({
-            id: mentor.id,
-            available: mentorshipCount,
-            ...mentor.data(),
-          } as FirestoreMentor);
-        } catch (error: any) {
-          functions.logger.error(`Error fetching availability for mentor ${mentor.id}: ${error.message}`);
-          allMentors.push({
-            id: mentor.id,
-            available: 0,
-            ...mentor.data(),
-          } as FirestoreMentor);
-        }
       })
     );
     return res.status(200).json({ data: allMentors })
@@ -450,7 +449,23 @@ export const hackerGetMentor = async (
 
     const data = snapshot.data()
 
-    return res.status(200).json({ data: data })
+    if (!data) {
+      return res.status(400).json({
+        error: "Cannot find mentor"
+      })
+    }
+
+    return res.status(200).json({
+      data: {
+        id: data.id,
+        email: data.email,
+        name: data.name,
+        mentor: data.mentor,
+        specialization: data.specialization,
+        discordUsername: data.discordUsername,
+        intro: data.intro
+      }
+    })
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMentor: ${(error as Error).message} `)
     return res.status(500).json({ error: "An unexpected error occurred." });
