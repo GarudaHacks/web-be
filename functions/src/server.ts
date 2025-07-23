@@ -51,6 +51,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.method === "OPTIONS") {
     return next();
   }
+
+  /** Uncomment to disable session validation  */
   validateSessionCookie(req, res, next);
 });
 
@@ -102,7 +104,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
 
   const timestamp = new Date().toISOString();
-  functions.logger.info(
+  functions.logger.debug(
     `[${timestamp}] Incoming Request Details: ${JSON.stringify(
       logData,
       null,

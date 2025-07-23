@@ -1,4 +1,7 @@
 export interface User {
+  id?: string; // linked to uid in firebase doc (not in the field)
+
+  displayName: string;
   firstName: string;
   lastName: string;
   email: string;
@@ -15,6 +18,7 @@ export interface User {
 }
 
 export const formatUser = (data: Partial<User>): User => ({
+  displayName: data.displayName || "",
   firstName: data.firstName || "",
   lastName: data.lastName || "",
   email: data.email || "",

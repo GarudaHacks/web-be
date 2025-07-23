@@ -6,6 +6,9 @@ import {
   Question,
   QUESTION_TYPE,
 } from "../types/application_types";
+import { FirestoreMentor, MentorshipAppointment } from "../models/mentorship";
+import { dummyMentors } from "../data/dummy/user";
+import { dummyMentorships } from "../data/dummy/mentorship";
 
 /**
  * Logs a message with a specific prefix.
@@ -45,6 +48,8 @@ export class FakeDataPopulator {
       await this.generateUsers();
 
       await this.generateQuestions();
+      await this.generateMentorshipAppointments();
+      await this.generateMentors()
     }
   }
 
@@ -193,6 +198,28 @@ export class FakeDataPopulator {
   }
 
   /**
+   * Generates mentorship appointments from the given dummy data.
+   */
+  private async generateMentorshipAppointments(): Promise<void> {
+    log("generateMentorshipAppointments");
+
+    dummyMentorships.map(async (dM: MentorshipAppointment) => {
+      await this.createMentorshipAppointmentDocument(dM)
+    })
+  }
+  
+  /**
+   * Generate fake mentors.
+   */
+  private async generateMentors(): Promise<void> {
+    log("generateMentors")
+
+    dummyMentors.map(async (mentor: FirestoreMentor) => {
+      await this.createMentorDocument(mentor)
+    })
+  }
+
+  /**
    * Gets the document reference for the generate document.
    * @returns {firestore.DocumentReference} The document reference.
    */
@@ -227,5 +254,20 @@ export class FakeDataPopulator {
    */
   private async createQuestionDocument(q: Question): Promise<void> {
     await this.firestoreDatabase.collection("questions").add(q);
+  }
+
+  /**
+   * Create a mentorship appointment.
+   * @param mA mentorship appointment
+   */
+  private async createMentorshipAppointmentDocument(mA: MentorshipAppointment): Promise<void> {
+    await this.firestoreDatabase.collection("mentorships").add(mA)
+  }
+
+  /**
+   * Create a mentor in user collection.
+   */
+  private async createMentorDocument(mentor: FirestoreMentor): Promise<void> {
+    await this.firestoreDatabase.collection("users").add(mentor)
   }
 }

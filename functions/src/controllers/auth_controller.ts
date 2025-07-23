@@ -715,3 +715,49 @@ export const verifyAccount = async (
     });
   }
 };
+
+export const getCurrentUserRole = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    /**
+     * Check request:
+     * 1. Cookie must be present in header.
+     */
+    const uid = req.user?.uid
+    if (req.user === undefined) {
+      res.status(401).json({
+        status: 401,
+        error: "Unauthorized"
+      })
+      return;
+    }
+    if (!uid || uid === undefined) {
+      res.status(401).json({
+        status: 401,
+        error: "Unauthorized"
+      })
+      return;
+    }
+
+    /**
+     * Process request:
+     * 1. Get claims of a user. If none, then default to hacker.
+     */
+    if (req.user.mentor === true) {
+      res.status(200).json({
+        status: 200,
+        role: "mentor"
+      })
+      return;
+    }
+
+    res.status(200).json({
+      status: 200,
+      role: "hacker"
+    })
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message })
+  }
+}
