@@ -14,6 +14,7 @@ const allowedOrigins = [
   "http://localhost:5173",
   "https://garudahacks.com",
   "https://portal.garudahacks.com",
+  "https://www.portal.garudahacks.com",
   "https://preview.portal.garudahacks.com",
 ];
 
