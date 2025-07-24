@@ -1,5 +1,5 @@
 import express, { Request, Response } from "express";
-import { getMentorshipConfig, hackerBookMentorships, hackerCancelMentorship, hackerGetMentor, hackerGetMentors, hackerGetMentorSchedule, hackerGetMentorSchedules, hackerGetMyMentorship, hackerGetMyMentorships, mentorGetMyMentorship, mentorGetMyMentorships, mentorPutMyMentorship } from "../controllers/mentorship_controller";
+import { getMentorSchedules, getMentorshipConfig, hackerBookMentorships, hackerCancelMentorship, hackerGetMentor, hackerGetMentors, hackerGetMentorSchedule, hackerGetMentorSchedules, hackerGetMyMentorship, hackerGetMyMentorships, mentorGetMyMentorship, mentorGetMyMentorships, mentorPutMyMentorship } from "../controllers/mentorship_controller";
 import { isMentor } from "../middlewares/role_middleware";
 
 const router = express.Router();
@@ -31,6 +31,12 @@ router.get("/hacker/mentors/:id", async (req: Request, res: Response) => {
 router.get("/hacker/mentorships", async (req: Request, res: Response) => {
   await hackerGetMentorSchedules(req, res)
 });
+router.get("/hacker/mentorshipss", async (req: Request, res: Response) => {
+  await hackerGetMentorSchedules(req, res)
+});
+router.get("/hacker/mentorships/:id", async (req: Request, res: Response) => {
+  await hackerGetMentorSchedule(req, res)
+});
 router.get("/hacker/mentorships/:id", async (req: Request, res: Response) => {
   await hackerGetMentorSchedule(req, res)
 });
@@ -45,6 +51,10 @@ router.get("/hacker/my-mentorships", async (req: Request, res: Response) => {
 })
 router.get("/hacker/my-mentorships/:id", async (req: Request, res: Response) => {
   await hackerGetMyMentorship(req, res)
+})
+
+router.get("/hacker/mentorSchedules", async (req: Request, res: Response) => {
+  await getMentorSchedules(req, res)
 })
 
 export default router;

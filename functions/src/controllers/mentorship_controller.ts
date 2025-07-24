@@ -7,6 +7,7 @@ import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
 import nodemailer from "nodemailer";
 import { epochToStringDate } from "../utils/date";
+import { putForm } from "axios";
 
 
 const CONFIG = "config";
@@ -478,14 +479,8 @@ export const hackerGetMentorSchedules = async (
 ) => {
   try {
     const { mentorId, limit } = req.query
-
-    // Check if mentorship is open
-    const configSnapshot = await db.collection(CONFIG).doc(MENTORSHIP_CONIFG).get()
-    const configData = configSnapshot.data()
-    if (configData && !configData.isMentorshipOpen) {
-      return res.status(400).json({ error: "Mentorship is currently closed" })
-    }
-
+    res.setHeader('Cache-Control', 'no-store'); // Disable caching
+    res.setHeader('Content-Type', 'application/json');
     if (!mentorId) {
       return res.status(400).json({ error: "mentorId is required as argument" })
     }
@@ -837,5 +832,46 @@ export const hackerGetMyMentorship = async (
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMyMentorship: ${(error as Error).message} `)
     return res.status(500).json({ error: (error as Error).message })
+  }
+}
+
+
+export const getMentorSchedules = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const { mentorId, limit } = req.query
+    res.setHeader('Cache-Control', 'no-store'); // Disable caching
+    res.setHeader('Content-Type', 'application/json');
+    if (!mentorId) {
+      return res.status(400).json({ error: "mentorId is required as argument" })
+    }
+
+    let query = db.collection(MENTORSHIPS)
+      .where(MENTOR_ID, "==", mentorId)
+
+    if (limit) {
+      const numericLimit = parseInt(limit as string, 10);
+      if (!isNaN(numericLimit) && numericLimit > 0) {
+        query = query.limit(numericLimit);
+      }
+    }
+
+    const snapshot = await query.get()
+
+    const allSchedules = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      startTime: doc.data().startTime,
+      endTime: doc.data().endTime,
+      mentorId: doc.data().mentorId,
+      hackerId: doc.data().hackerId,
+      location: doc.data().location,
+    })) as MentorshipAppointmentResponseAsHacker[];
+
+    return res.status(200).json({ data: allSchedules });
+  } catch (error) {
+    functions.logger.error(`Error when trying hackerGetMentorSchedules: ${(error as Error).message} `)
+    return res.status(500).json({ error: "An unexpected error occurred." });
   }
 }

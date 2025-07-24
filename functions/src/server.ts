@@ -11,6 +11,7 @@ const app = express();
 const allowedOrigins = [
   "https://garudahacks.com",
   "https://portal.garudahacks.com",
+  "https://www.portal.garudahacks.com",
   "https://preview.portal.garudahacks.com",
   "http://localhost:3000",
   "http://localhost:3001",
