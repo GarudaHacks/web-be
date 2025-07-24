@@ -137,8 +137,8 @@ const createMentorshipBookingMailOptions = (
 
         <div style="border: 1px solid #718096; border-radius: 8px;">
           <div>
-            <h4>Team Name ${teamName}</h4>
-            <h4>Hacker Name ${hackerName}</h4>
+            <h4>Team Name: ${teamName}</h4>
+            <h4>Hacker Name: ${hackerName}</h4>
           </div>
 
           <div>
@@ -179,7 +179,6 @@ const sendMentorshipBookingEmail = async (
 ): Promise<void> => {
   const mailOptions = createMentorshipBookingMailOptions(mentorEmail, mentorName, teamName, hackerName, startDate, endDate, portalLink, duration)
   await transporter.sendMail(mailOptions)
-  functions.logger.info("Booking email sent successfuly to:", mentorEmail)
   functions.logger.info("Booking email sent successfuly to:", mentorEmail)
 }
 
