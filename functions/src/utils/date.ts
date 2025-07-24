@@ -4,7 +4,7 @@
  * @returns 
  */
 export function dateToStringTime(date: Date) {
-  return date.toLocaleString('en-US', { timeStyle: 'short' })
+  return date.toLocaleString('id-ID', { timeStyle: 'short', timeZone: 'Asia/Jakarta' })
 }
 
 /**
@@ -13,9 +13,16 @@ export function dateToStringTime(date: Date) {
  * @returns 
  */
 export function epochToStringDate(epochSecond: number) {
-  const startDate = new Date(epochSecond * 1000)
-  const startDay = startDate.toLocaleDateString()
-  const startTimestamp = startDate.toLocaleString('en-US', { timeStyle: 'short' })
-  const start = `${startDay} ${startTimestamp}`
-  return start
+  const startDate = new Date(epochSecond * 1000);
+  const startDay = startDate.toLocaleDateString('id-ID', { timeZone: 'Asia/Jakarta' });
+  const startTimestamp = startDate.toLocaleString('id-ID', {
+    timeStyle: 'short',
+    timeZone: 'Asia/Jakarta',
+  });
+  const timeZoneName = new Intl.DateTimeFormat('id-ID', {
+    timeZoneName: 'short',
+    timeZone: 'Asia/Jakarta',
+  }).formatToParts(startDate).find(part => part.type === 'timeZoneName')?.value || 'WIB';
+  const start = `${startDay} ${startTimestamp} ${timeZoneName}`;
+  return start;
 }
