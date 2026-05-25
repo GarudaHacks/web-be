@@ -7,7 +7,6 @@ import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
 import nodemailer from "nodemailer";
 import { epochToStringDate } from "../utils/date";
-import { putForm } from "axios";
 
 
 const CONFIG = "config";

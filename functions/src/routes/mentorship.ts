@@ -9,17 +9,17 @@ router.get("/config", async (req: Request, res: Response) => {
 });
 
 // ****FOR MENTORS ONLY****
-router.get("/mentor/my-mentorships", isMentor, (req: Request, res: Response) =>
-  mentorGetMyMentorships(req, res)
-);
+router.get("/mentor/my-mentorships", isMentor, async (req: Request, res: Response) => {
+  await mentorGetMyMentorships(req, res);
+});
 
 router.get("/mentor/my-mentorships/:id", isMentor, async (req: Request, res: Response) => {
   await mentorGetMyMentorship(req, res)
 });
 
-router.post("/mentor/my-mentorships/:id", isMentor, (req: Request, res: Response) =>
-  mentorPutMyMentorship(req, res)
-);
+router.post("/mentor/my-mentorships/:id", isMentor, async (req: Request, res: Response) => {
+  await mentorPutMyMentorship(req, res);
+});
 
 // ****FOR HACKERS ONLY****
 router.get("/hacker/mentors", async (req: Request, res: Response) => {
