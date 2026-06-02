@@ -41,6 +41,8 @@ export class FakeDataPopulator {
   async generateFakeData() {
     log("generateFakeData");
 
+    await this.ensureMatchConfigDocument();
+
     const generateDocument = await this.getGenerateDocument().get();
 
     if (!generateDocument.exists) {
@@ -51,6 +53,25 @@ export class FakeDataPopulator {
       await this.generateMentorshipAppointments();
       await this.generateMentors()
     }
+  }
+
+  /**
+   * Ensures matchmaking config exists for local development.
+   */
+  private async ensureMatchConfigDocument(): Promise<void> {
+    const matchConfigRef = this.firestoreDatabase
+      .collection("config")
+      .doc("matchConfig");
+    const matchConfigDoc = await matchConfigRef.get();
+    if (matchConfigDoc.exists) {
+      return;
+    }
+
+    await matchConfigRef.set({
+      isMatchOpen: false,
+      startDate: firestore.Timestamp.now(),
+      endDate: firestore.Timestamp.now(),
+    });
   }
 
   /**
