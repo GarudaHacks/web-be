@@ -1,8 +1,21 @@
 import { Request, Response } from "express";
 import * as functions from "firebase-functions";
+import { Timestamp } from "firebase-admin/firestore";
 import { db } from "../config/firebase";
 import { APPLICATION_STATUS } from "../types/application_types";
-import { Match, MatchCardDTO, Swipe, SwipeDirection, formatMatchCard } from "../models/match";
+import {
+  HackCardProfile,
+  Match,
+  MatchCardDTO,
+  MatchDeckCardDTO,
+  MatchDetailDTO,
+  Swipe,
+  SwipeDirection,
+  formatMatchCard,
+  formatMatchDeckCard,
+  formatMatchDetail,
+} from "../models/match";
+import { Notification, buildMatchNotification } from "../models/notification";
 import { MatchConfig } from "../types/config";
 
 const CONFIG = "config";
@@ -10,6 +23,8 @@ const MATCH_CONFIG_DOC = "matchConfig";
 const USERS = "users";
 const SWIPES = "swipes";
 const MATCHES = "matches";
+const NOTIFICATIONS = "notifications";
+const HACK_CARDS = "hack_cards";
 const RATE_LIMIT_PER_MINUTE = 15;
 const DEFAULT_DECK_SIZE = 10;
 const MAX_DECK_SIZE = 50;
@@ -27,7 +42,31 @@ type MatchUserDoc = {
   matchEnabledAt?: number;
 };
 
+// Stored shape of a `hack_cards/{uid}` document (client writes snake_case).
+type HackCardDoc = {
+  username?: string;
+  discord?: string;
+  role?: string;
+  skills?: string[];
+  short_bio?: string;
+  project_interest?: string;
+  avatar_url?: string | null;
+};
+
 const nowUnixSeconds = (): number => Math.floor(Date.now() / 1000);
+
+// Normalizes a hack-card document into the public profile fields. Returns
+// empty defaults when the user has no hack card so the DTO stays consistent.
+const mapHackCardProfile = (
+  hackCardData: HackCardDoc | null
+): HackCardProfile => ({
+  username: hackCardData?.username || "",
+  role: hackCardData?.role || "",
+  skills: Array.isArray(hackCardData?.skills) ? hackCardData.skills : [],
+  shortBio: hackCardData?.short_bio || "",
+  projectInterest: hackCardData?.project_interest || "",
+  avatarUrl: hackCardData?.avatar_url || "",
+});
 
 const getUidFromRequest = (req: Request): string | null => {
   if (!req.user?.uid) {
@@ -81,6 +120,72 @@ const buildMatchCardFromUser = (
     lastName: userData.lastName || fallbackLast,
     school: userData.school || "",
   });
+};
+
+const resolveUserName = (
+  userData: MatchUserDoc
+): { firstName: string; lastName: string } => {
+  const fallbackName = userData.name || "";
+  const fallbackParts = fallbackName.trim().split(/\s+/);
+  const fallbackFirst = fallbackParts[0] || "";
+  const fallbackLast =
+    fallbackParts.length > 1 ? fallbackParts.slice(1).join(" ") : "";
+
+  return {
+    firstName: userData.firstName || fallbackFirst,
+    lastName: userData.lastName || fallbackLast,
+  };
+};
+
+// Deck/swipe card: identity from `users` enriched with public hack-card
+// profile fields. Contact info (discord) is intentionally excluded here.
+const buildMatchDeckCard = (
+  userId: string,
+  userData: MatchUserDoc,
+  hackCardData: HackCardDoc | null
+): MatchDeckCardDTO => {
+  const { firstName, lastName } = resolveUserName(userData);
+
+  return formatMatchDeckCard({
+    id: userId,
+    firstName,
+    lastName,
+    school: userData.school || "",
+    ...mapHackCardProfile(hackCardData),
+  });
+};
+
+// Post-match detail: deck card plus contact info (discord).
+const buildMatchDetailFromUser = (
+  userId: string,
+  userData: MatchUserDoc,
+  hackCardData: HackCardDoc | null
+): MatchDetailDTO => {
+  return formatMatchDetail({
+    ...buildMatchDeckCard(userId, userData, hackCardData),
+    discord: hackCardData?.discord || "",
+  });
+};
+
+// Batch-fetches hack cards for the given user IDs, keyed by UID. Missing
+// cards are simply absent from the map (callers default to empty fields).
+const getHackCardsByUserId = async (
+  userIds: string[]
+): Promise<Map<string, HackCardDoc>> => {
+  const result = new Map<string, HackCardDoc>();
+  if (userIds.length === 0) {
+    return result;
+  }
+
+  const refs = userIds.map((id) => db.collection(HACK_CARDS).doc(id));
+  const snapshots = await db.getAll(...refs);
+  snapshots.forEach((snapshot) => {
+    if (snapshot.exists) {
+      result.set(snapshot.id, snapshot.data() as HackCardDoc);
+    }
+  });
+
+  return result;
 };
 
 const getMatchConfig = async (): Promise<MatchConfig | null> => {
@@ -269,7 +374,7 @@ export const getDeck = async (
       db.collection(USERS).where("matchEnabled", "==", true).get(),
     ]);
 
-    const availableCards: MatchCardDTO[] = [];
+    const eligibleCandidates: { id: string; data: MatchUserDoc }[] = [];
     optedInUsersSnapshot.docs.forEach((doc) => {
       const candidateId = doc.id;
       const candidateData = doc.data() as MatchUserDoc;
@@ -286,13 +391,24 @@ export const getDeck = async (
         return;
       }
 
-      availableCards.push(buildMatchCardFromUser(candidateId, candidateData));
+      eligibleCandidates.push({ id: candidateId, data: candidateData });
     });
 
-    const shuffledCards = shuffle(availableCards).slice(0, limit);
+    const selectedCandidates = shuffle(eligibleCandidates).slice(0, limit);
+    const hackCards = await getHackCardsByUserId(
+      selectedCandidates.map((candidate) => candidate.id)
+    );
+
+    const deckCards: MatchDeckCardDTO[] = selectedCandidates.map((candidate) =>
+      buildMatchDeckCard(
+        candidate.id,
+        candidate.data,
+        hackCards.get(candidate.id) || null
+      )
+    );
 
     return res.status(200).json({
-      data: shuffledCards,
+      data: deckCards,
     });
   } catch (error) {
     functions.logger.error(`Error when trying getDeck: ${(error as Error).message}`);
@@ -362,6 +478,8 @@ export const swipe = async (req: Request, res: Response): Promise<Response> => {
     if (!isUserMatchCandidate(targetData)) {
       return res.status(400).json({ error: "Target user is not available" });
     }
+    const currentUserCard = buildMatchCardFromUser(uid, currentUserData);
+    const targetUserCard = buildMatchCardFromUser(targetId, targetData);
 
     const currentTime = nowUnixSeconds();
     const rateLimitCutoff = currentTime - 60;
@@ -416,11 +534,38 @@ export const swipe = async (req: Request, res: Response): Promise<Response> => {
         matchId = getSortedMatchId(uid, targetId);
         const matchRef = db.collection(MATCHES).doc(matchId);
         const sortedUsers = [uid, targetId].sort() as [string, string];
+        const notificationCreatedAt = Timestamp.now();
+        const notificationForCurrentUser = buildMatchNotification(
+          uid,
+          matchId,
+          targetUserCard,
+          notificationCreatedAt
+        );
+        const notificationForTargetUser = buildMatchNotification(
+          targetId,
+          matchId,
+          currentUserCard,
+          notificationCreatedAt
+        );
+        const currentUserNotificationRef = db
+          .collection(NOTIFICATIONS)
+          .doc(`${uid}_match_${matchId}`);
+        const targetUserNotificationRef = db
+          .collection(NOTIFICATIONS)
+          .doc(`${targetId}_match_${matchId}`);
 
         transaction.set(matchRef, {
           users: sortedUsers,
           createdAt: currentTime,
         } as Match);
+        transaction.set(
+          currentUserNotificationRef,
+          notificationForCurrentUser as Notification
+        );
+        transaction.set(
+          targetUserNotificationRef,
+          notificationForTargetUser as Notification
+        );
         matched = true;
       }
     });
@@ -528,17 +673,27 @@ export const getMatchById = async (
       return res.status(404).json({ error: "Matched user not found" });
     }
 
-    const otherUserSnapshot = await db.collection(USERS).doc(otherUserId).get();
+    const [otherUserSnapshot, otherHackCardSnapshot] = await Promise.all([
+      db.collection(USERS).doc(otherUserId).get(),
+      db.collection(HACK_CARDS).doc(otherUserId).get(),
+    ]);
     if (!otherUserSnapshot.exists) {
       return res.status(404).json({ error: "Matched user not found" });
     }
 
     const otherUserData = otherUserSnapshot.data() as MatchUserDoc;
+    const otherHackCardData = otherHackCardSnapshot.exists
+      ? (otherHackCardSnapshot.data() as HackCardDoc)
+      : null;
     return res.status(200).json({
       data: {
         id: matchSnapshot.id,
         createdAt: matchData.createdAt,
-        user: buildMatchCardFromUser(otherUserId, otherUserData),
+        user: buildMatchDetailFromUser(
+          otherUserId,
+          otherUserData,
+          otherHackCardData
+        ),
       },
     });
   } catch (error) {
