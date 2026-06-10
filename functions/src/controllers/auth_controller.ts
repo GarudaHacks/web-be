@@ -761,3 +761,148 @@ export const getCurrentUserRole = async (
     res.status(500).json({ error: (error as Error).message })
   }
 }
+
+/**
+ * Sign-in or sign-up using Discord.
+ * For a new user where email is not present in auth, it will
+ * create a new auth row with provider `email`. The user data
+ * in the collection will be marked as discord:<id>.
+ * @param req 
+ * @param res 
+ */
+export const authDiscord = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { code, intent } = req.body;
+    const params = new URLSearchParams({
+      client_id: process.env.DISCORD_CLIENT_ID!,
+      client_secret: process.env.DISCORD_CLIENT_SECRET!,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: process.env.NODE_ENV === "development" ? "http://localhost:5173/auth/discord/callback" : "https://portal.garudahacks.com/auth/discord/callback"
+    })
+    // exchange code for token from Discord
+    const AUTH_URL = "https://discord.com/api/oauth2/token"
+    const tokenResponse = await axios.post(AUTH_URL, params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    })
+    const { access_token } = tokenResponse.data
+    // get user's info
+    const userResponse = await axios.get("https://discord.com/api/users/@me", {
+      headers: {
+        Authorization: `Bearer ${access_token}`
+      }
+    })
+
+    const { id, avatarId, email, verified, global_name } = userResponse.data
+    const uid = `discord:${id}`
+    const avatarUrl = `https://cdn.discordapp.com/avatars/${uid}/${avatarId}.png`
+    const userEmail = `${email}`
+    try {
+      // check if user exist
+      await auth.getUserByEmail(email)
+    } catch (error: any) {
+      const err = error as FirebaseError
+      if (err.code === "auth/user-not-found" && intent === "signup") { // if not found -> new user. init a record
+        // create in auth
+        await db.collection("users").doc(uid).set({
+          userId: uid,
+          email: userEmail,
+          provider: "Discord",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        })
+        // create collection
+        const user = await auth.createUser({
+          "uid": uid,
+          "displayName": global_name,
+          "email": email,
+          "emailVerified": verified,
+          "photoURL": avatarUrl,
+        });
+        // set custom claims to user
+        await auth.setCustomUserClaims(user.uid, {
+          role: "User",
+        });
+      } else if (err.code === "auth/user-not-found" && intent === "signin") {
+        functions.logger.error("Error when trying to log in:", err.message);
+        res.status(404).json({ status: 404, error: "No account found. Please sign up first." });
+        return
+      } else {
+        throw err
+      }
+    }
+
+    // then do session login
+    const customToken = await auth.createCustomToken(uid, {
+      role: "User",
+      provider: "Discord"
+    })
+
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
+    const url = isEmulator
+      ? "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=dummy-key"
+      : `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${process.env.WEB_API_KEY}`;
+
+    const signInResponse = await axios.post(url, {
+      token: customToken,
+      returnSecureToken: true
+    })
+    const { idToken } = signInResponse.data;
+    const sessionCookie = await auth.createSessionCookie(idToken, { expiresIn: SESSION_EXPIRY_SECONDS })
+
+    res.cookie("__session", sessionCookie, {
+      httpOnly: true,
+      maxAge: SESSION_EXPIRY_SECONDS,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    const csrfToken = generateCsrfToken();
+    // http only cookie
+    res.cookie("CSRF-TOKEN", csrfToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+    // non http only cookie
+    res.cookie("XSRF-TOKEN", csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    res.status(200).json({
+      status: 200,
+      message: "Login successful",
+      user: {
+        email: email,
+        displayName: global_name,
+      },
+    });
+  } catch (error) {
+    functions.logger.error(error)
+    if (axios.isAxiosError(error)) {
+      res.status(error.response?.status ?? 500).json({ error: error.response?.data ?? error.message })
+    } else {
+      res.status(500).json({ error: (error as Error).message })
+    }
+  }
+}
+
+// interface providerUser {
+//   id: string
+//   email: string
+//   username: string
+// }
+// export const handleOAuthLogin(provider: string, providerUser: providerUser) {
+//   let account = await db.
+// }
+
+// {"id":"305684499763691523","username":"_heryan","avatar":"4ade4d3fc38818f7e92da464b915456b","discriminator":"0","public_flags":0,"flags":0,"banner":null,"accent_color":1453968,"global_name":"Ryan","avatar_decoration_data":null,"collectibles":null,"display_name_styles":null,"banner_color":"#162f90","clan":null,"primary_guild":null,"mfa_enabled":false,"locale":"en-US","premium_type":0,"email":"heryandjaruma@gmail.com","verified":true}
+
+// https://cdn.discordapp.com/avatars/305684499763691523/4ade4d3fc38818f7e92da464b915456b.png

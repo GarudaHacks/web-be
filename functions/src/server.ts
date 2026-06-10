@@ -9,12 +9,14 @@ import { validateSessionCookie } from "./middlewares/auth_middleware";
 const app = express();
 
 const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
   "https://garudahacks.com",
   "https://portal.garudahacks.com",
   "https://preview.portal.garudahacks.com",
+  "http://localhost:3000",
+  "http://localhost:3001",
+  "http://localhost:5173",
+  "https://hoppscotch.io",
+  "chrome-extension://amknoiejhlmhancpahfcfcfhllgkpbld",
 ];
 
 const corsOptions: CorsOptions = {

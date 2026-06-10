@@ -4,6 +4,11 @@ import * as dotenv from "dotenv";
 
 dotenv.config();
 
+if (process.env.NODE_ENV === "development") {
+  process.env.FIRESTORE_EMULATOR_HOST = "127.0.0.1:8080";
+  process.env.FIREBASE_AUTH_EMULATOR_HOST = "127.0.0.1:9099";
+}
+
 admin.initializeApp({
   projectId: process.env.PROJECT_ID,
   credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
