@@ -2,7 +2,6 @@ import { Request, Response } from "express";
 import { auth, db } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
-import { formatUser, User } from "../models/user";
 import { FieldValue } from "firebase-admin/firestore";
 import { convertResponseToSnakeCase } from "../utils/camel_case";
 import * as functions from "firebase-functions";
@@ -10,6 +9,7 @@ import { FirebaseError } from "firebase-admin";
 import { generateCsrfToken } from "../middlewares/csrf_middleware";
 import { APPLICATION_STATUS } from "../types/application_types";
 import nodemailer from "nodemailer";
+import { User } from "../models/user";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
 
@@ -276,10 +276,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
   let user;
   try {
+    let verified = false
+    if (process.env.NODE_ENV === "development") {
+      verified = true
+    }
     user = await auth.createUser({
       displayName: name,
       email,
       password,
+      "emailVerified": verified
     });
     // set custom claims to user
     await auth.setCustomUserClaims(user.uid, {
@@ -287,7 +292,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     const err = error as FirebaseError;
-    if (err.code.match("auth/email-already-exists")) {
+    if (err.code?.match("auth/email-already-exists")) {
       res.status(409).json({
         status: 409,
         error: "Email already exists",
@@ -307,12 +312,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const existingUserRef = await db.collection("users").doc(user.uid).get();
     if (!existingUserRef.exists) {
-      const userData: User = formatUser({
+      const userData: User = {
         email: email ?? "",
-        firstName: name ?? "",
+        displayName: name ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
-      });
-
+      };
       await db
         .collection("users")
         .doc(user.uid)
@@ -339,8 +343,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     // Generate email verification link
     const verificationLink = await auth.generateEmailVerificationLink(email);
 
-    // Send verification email
-    await sendVerificationEmail(email, verificationLink);
+    if (process.env.NODE_ENV === "development") {
+      // Send verification email
+      await sendVerificationEmail(email, verificationLink);
+    }
 
     const customToken = await auth.createCustomToken(user.uid);
 
@@ -510,13 +516,12 @@ export const sessionLogin = async (
   // handle when user is new or existing
   try {
     const userDocumentRef = await db.collection("users").doc(user.uid).get();
-    // when user is a new user, then populate db
-    if (!userDocumentRef.exists) {
-      const userData: User = formatUser({
+    if (!userDocumentRef.exists) { // when user is a new user, then populate db
+      const userData: User = {
         email: user.email ?? "",
-        firstName: user.displayName ?? "",
+        displayName: user.displayName ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
-      });
+      };
       await db
         .collection("users")
         .doc(user.uid)
@@ -811,6 +816,7 @@ export const authDiscord = async (
         // create in auth
         await db.collection("users").doc(uid).set({
           userId: uid,
+          discord_uid: id, // save uid as plain number for the discord
           email: userEmail,
           provider: "Discord",
           createdAt: FieldValue.serverTimestamp(),

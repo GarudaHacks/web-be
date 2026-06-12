@@ -2,8 +2,8 @@ export interface User {
   id?: string; // linked to uid in firebase doc (not in the field)
 
   displayName: string;
-  firstName: string;
-  lastName: string;
+  first_name?: string;
+  last_name?: string;
   email: string;
   dateOfBirth?: string;
   school?: string;
@@ -16,20 +16,3 @@ export interface User {
   linkedin?: string;
   admin?: boolean;
 }
-
-export const formatUser = (data: Partial<User>): User => ({
-  displayName: data.displayName || "",
-  firstName: data.firstName || "",
-  lastName: data.lastName || "",
-  email: data.email || "",
-  dateOfBirth: data.dateOfBirth || "",
-  school: data.school || "",
-  grade: data.grade || null,
-  year: data.year || null,
-  genderIdentity: data.genderIdentity || "",
-  status: data.status || "not applicable",
-  portfolio: data.portfolio || "",
-  github: data.github || "",
-  linkedin: data.linkedin || "",
-  admin: data.admin || false,
-});
