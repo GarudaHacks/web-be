@@ -394,6 +394,10 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
   // check valid value
   const options = question.options;
   if (options && !options.includes(fieldValue)) {
+    const hasOtherOption = options.includes("Other");
+    if (hasOtherOption && fieldValue.startsWith("Other-")) {
+      return errors;
+    }
     errors.push({
       field_id: `${question.id}`,
       message: `Invalid value. Must be one of ${options.join(", ")}`,
