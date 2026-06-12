@@ -3,15 +3,20 @@ import { auth, db } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
 import { FieldValue } from "firebase-admin/firestore";
-import { convertResponseToSnakeCase } from "../utils/camel_case";
 import * as functions from "firebase-functions";
 import { FirebaseError } from "firebase-admin";
 import { generateCsrfToken } from "../middlewares/csrf_middleware";
 import { APPLICATION_STATUS } from "../types/application_types";
 import nodemailer from "nodemailer";
-import { User } from "../models/user";
+import { User, AuthResponse } from "../models/user";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
+
+const deriveRole = (claims?: Record<string, unknown>): string => {
+  if (claims?.admin === true) return "admin";
+  if (claims?.mentor === true) return "mentor";
+  return "hacker";
+};
 
 const validateEmailAndPassword = (
   email: string,
@@ -206,7 +211,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       })
     ).data;
 
+    // Get user detail
     const user = await auth.getUserByEmail(email);
+
+    const userDoc = await db.collection("users").doc(user.uid).get()
 
     try {
       const cookies = await auth.createSessionCookie(token.idToken, {
@@ -243,14 +251,18 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.status(200).json(
-      convertResponseToSnakeCase({
-        message: "Login successful",
-        user: {
-          email: user.email,
-          displayName: user.displayName,
-        },
-      })
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: user.email ?? "",
+      displayName: user.displayName ?? "",
+      emailVerified: user.emailVerified,
+      status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(user.customClaims),
+    };
+    res.status(200).json({
+      message: "Login successful",
+      user: authResponse,
+    }
     );
   } catch (error) {
     const err = error as Error;
@@ -392,16 +404,20 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.status(201).json(
-      convertResponseToSnakeCase({
-        status: 201,
-        message:
-          "Registration successful. Please check your email for verification link.",
-        user: {
-          email: user.email,
-          displayName: user.displayName,
-        },
-      })
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: user.email ?? "",
+      displayName: user.displayName ?? "",
+      emailVerified: user.emailVerified,
+      status: APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(user.customClaims),
+    };
+    res.status(201).json({
+      status: 201,
+      message:
+        "Registration successful. Please check your email for verification link.",
+      user: authResponse,
+    }
     );
   } catch (error) {
     const err = error as Error;
@@ -514,6 +530,7 @@ export const sessionLogin = async (
   }
 
   // handle when user is new or existing
+  let userStatus: string = APPLICATION_STATUS.NOT_APPLICABLE;
   try {
     const userDocumentRef = await db.collection("users").doc(user.uid).get();
     if (!userDocumentRef.exists) { // when user is a new user, then populate db
@@ -530,6 +547,7 @@ export const sessionLogin = async (
           createdAt: FieldValue.serverTimestamp(),
         });
     } else {
+      userStatus = userDocumentRef.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE;
       user = await auth.getUserByEmail(decodedIdToken.email);
     }
   } catch (error) {
@@ -567,14 +585,21 @@ export const sessionLogin = async (
       sameSite: "strict",
     });
 
-    res.status(200).json({
-      status: 200,
-      message: "Login successful",
-      user: {
-        email: user.email,
-        displayName: user.displayName,
-      },
-    });
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: user.email ?? "",
+      displayName: user.displayName ?? "",
+      emailVerified: user.emailVerified,
+      status: userStatus,
+      role: deriveRole(user.customClaims),
+    };
+    res.status(200).json(
+      {
+        status: 200,
+        message: "Login successful",
+        user: authResponse,
+      }
+    );
   } catch (e) {
     functions.logger.error("Error when trying to session login", e);
     res.status(500).json({ status: 500, error: "Something went wrong" });
@@ -605,18 +630,23 @@ export const sessionCheck = async (
 
     // Get user data to check email verification status
     const user = await auth.getUser(decodedSessionCookie.sub);
+    const userDoc = await db.collection("users").doc(user.uid).get();
 
-    res.status(200).json({
-      status: 200,
-      message: "Session is valid",
-      data: {
-        user: {
-          email: decodedSessionCookie.email,
-          displayName: decodedSessionCookie.name,
-          emailVerified: user.emailVerified,
-        },
-      },
-    });
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: decodedSessionCookie.email ?? "",
+      displayName: decodedSessionCookie.name ?? "",
+      emailVerified: user.emailVerified,
+      status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(user.customClaims),
+    };
+    res.status(200).json(
+      {
+        status: 200,
+        message: "Session is valid",
+        user: authResponse,
+      }
+    );
     return;
   } catch (e) {
     functions.logger.error("Error when trying to check session", e);
@@ -882,14 +912,25 @@ export const authDiscord = async (
       sameSite: "strict",
     });
 
-    res.status(200).json({
-      status: 200,
-      message: "Login successful",
-      user: {
-        email: email,
-        displayName: global_name,
-      },
-    });
+    const [userDoc, discordUser] = await Promise.all([
+      db.collection("users").doc(uid).get(),
+      auth.getUser(uid),
+    ]);
+    const authResponse: AuthResponse = {
+      uid,
+      email,
+      displayName: global_name,
+      emailVerified: verified,
+      status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(discordUser.customClaims),
+    };
+    res.status(200).json(
+      {
+        status: 200,
+        message: "Login successful",
+        user: authResponse,
+      }
+    );
   } catch (error) {
     functions.logger.error(error)
     if (axios.isAxiosError(error)) {

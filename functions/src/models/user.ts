@@ -1,3 +1,12 @@
+export interface AuthResponse {
+  uid: string
+  email: string
+  displayName: string
+  emailVerified: boolean
+  role: string // if not mentor=true or admin=true
+  status: string // application status
+}
+
 export interface User {
   id?: string; // linked to uid in firebase doc (not in the field)
 
