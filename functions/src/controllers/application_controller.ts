@@ -7,6 +7,7 @@ import {
   APPLICATION_STATUS,
   DatetimeValidation,
   DropdownValidation,
+  MultiValidation,
   ExtendedRequest,
   FileData,
   FileInfo,
@@ -281,6 +282,9 @@ async function validateApplicationResponse(req: Request, uid: string) {
       case QUESTION_TYPE.DROPDOWN:
         fieldErrors = validateDropdownValue(fieldValue, question);
         break;
+      case QUESTION_TYPE.MULTI:
+        fieldErrors = validateMultiValue(fieldValue, question);
+        break;
       case QUESTION_TYPE.FILE:
         fieldErrors = await validateFileUploaded(fieldValue, question, uid);
         break;
@@ -395,6 +399,59 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
       message: `Invalid value. Must be one of ${options.join(", ")}`,
     });
   }
+  return errors;
+}
+
+function validateMultiValue(fieldValue: string[] | any, question: Question) {
+  const errors: { field_id: string; message: string }[] = [];
+
+  const validation = (question.validation || {}) as MultiValidation;
+
+  const isEmpty =
+    fieldValue === undefined ||
+    fieldValue === null ||
+    (Array.isArray(fieldValue) && fieldValue.length === 0);
+
+  if (validation.required !== true && isEmpty) {
+    return errors;
+  }
+
+  if (validation.required === true && isEmpty) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `This field is required`,
+    });
+    return errors;
+  }
+
+  if (!Array.isArray(fieldValue)) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Value must be an array`,
+    });
+    return errors;
+  }
+
+  if (
+    validation.minSelections !== undefined &&
+    fieldValue.length < validation.minSelections
+  ) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Select at least ${validation.minSelections} option(s)`,
+    });
+  }
+
+  if (
+    validation.maxSelections !== undefined &&
+    fieldValue.length > validation.maxSelections
+  ) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Select at most ${validation.maxSelections} option(s)`,
+    });
+  }
+
   return errors;
 }
 

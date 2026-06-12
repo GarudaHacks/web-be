@@ -15,7 +15,11 @@ export enum APPLICATION_STATUS {
  */
 export enum APPLICATION_STATES {
   PROFILE = "PROFILE",
-  INQUIRY = "INQUIRY",
+  TEAM = "TEAM",
+  SPEED_DATING = "SPEED_DATING",
+  APPLICATION = "APPLICATION",
+  LOGISTICAL_DETAIL = "LOGISTICAL_DETAIL",
+  EMERGENCY_AND_CONSENT = "EMERGENCY_AND_CONSENT",
   ADDITIONAL_QUESTION = "ADDITIONAL_QUESTION",
 }
 
@@ -26,6 +30,7 @@ export enum QUESTION_TYPE {
   DATE = "datetime",
   DROPDOWN = "dropdown",
   FILE = "file",
+  MULTI = "multi",
 }
 
 export interface StringValidation {
@@ -56,6 +61,12 @@ export interface FileValidation {
   maxSize: number; // in MB
 }
 
+export interface MultiValidation {
+  required?: boolean;
+  minSelections?: number;
+  maxSelections?: number;
+}
+
 export type ValidationTypeMap = {
   [QUESTION_TYPE.STRING]: StringValidation;
   [QUESTION_TYPE.TEXTAREA]: StringValidation; // textarea use string validation
@@ -63,6 +74,7 @@ export type ValidationTypeMap = {
   [QUESTION_TYPE.DATE]: DatetimeValidation;
   [QUESTION_TYPE.DROPDOWN]: DropdownValidation;
   [QUESTION_TYPE.FILE]: FileValidation;
+  [QUESTION_TYPE.MULTI]: MultiValidation;
 };
 
 export interface Question {
