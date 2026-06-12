@@ -22,8 +22,11 @@ import * as functions from "firebase-functions";
 const bucket = admin.storage().bucket();
 
 // upload file
-const USER_UPLOAD_PATH = `users/uploads/`;
-const STORAGE_BASE_LINK = `https://storage.googleapis.com/${bucket.name}/`;
+const USER_UPLOAD_PATH = `users/uploads/7.0/`; // change for 7.0 hack
+const isEmulator = !!process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+const STORAGE_BASE_LINK = isEmulator
+  ? `http://127.0.0.1:9199/${bucket.name}/`
+  : `https://storage.googleapis.com/${bucket.name}/`;
 
 const VALID_STATES = Object.values(APPLICATION_STATES);
 
@@ -195,9 +198,8 @@ async function constructDataToSave(
     ) {
       dataToSave[
         question.id
-      ] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${
-        question.id
-      }.${req.body[question.id].split(".").pop()}`;
+      ] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${question.id
+        }.${req.body[question.id].split(".").pop()}`;
     } else {
       dataToSave[question.id] = fieldValue;
     }
@@ -216,9 +218,8 @@ function validateApplicationState(req: Request) {
   } else if (!VALID_STATES.includes(req.body.state)) {
     errors.push({
       field_id: `state`,
-      message: `Invalid state ${
-        req.body.state
-      }. Must be one of ${VALID_STATES.join(", ")}`,
+      message: `Invalid state ${req.body.state
+        }. Must be one of ${VALID_STATES.join(", ")}`,
     });
   }
   return errors;
@@ -234,10 +235,10 @@ async function findQuestionsByState(
     .get();
   const questions = snapshot.docs.map(
     (doc) =>
-      ({
-        id: doc.id,
-        ...doc.data(),
-      } as Question)
+    ({
+      id: doc.id,
+      ...doc.data(),
+    } as Question)
   );
   return questions;
 }
@@ -265,28 +266,28 @@ async function validateApplicationResponse(req: Request, uid: string) {
 
     let fieldErrors;
     switch (question.type) {
-    case QUESTION_TYPE.STRING:
-      fieldErrors = validateStringValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.TEXTAREA:
-      fieldErrors = validateStringValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.NUMBER:
-      fieldErrors = validateNumberValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.DATE:
-      fieldErrors = validateDatetimeValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.DROPDOWN:
-      fieldErrors = validateDropdownValue(fieldValue, question);
-      break;
-    case QUESTION_TYPE.FILE:
-      fieldErrors = await validateFileUploaded(fieldValue, question, uid);
-      break;
-    default:
-      fieldErrors = [
-        `Unsupported type for field ${question.id}: ${typeof fieldValue}`,
-      ];
+      case QUESTION_TYPE.STRING:
+        fieldErrors = validateStringValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.TEXTAREA:
+        fieldErrors = validateStringValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.NUMBER:
+        fieldErrors = validateNumberValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.DATE:
+        fieldErrors = validateDatetimeValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.DROPDOWN:
+        fieldErrors = validateDropdownValue(fieldValue, question);
+        break;
+      case QUESTION_TYPE.FILE:
+        fieldErrors = await validateFileUploaded(fieldValue, question, uid);
+        break;
+      default:
+        fieldErrors = [
+          `Unsupported type for field ${question.id}: ${typeof fieldValue}`,
+        ];
     }
 
     errors.push(...fieldErrors);
@@ -306,7 +307,7 @@ async function validateFileUploaded(
 ) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as FileValidation;
+  const validation = (question.validation || {}) as FileValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -364,7 +365,7 @@ async function validateFileUploaded(
 function validateDropdownValue(fieldValue: string | any, question: Question) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as DropdownValidation;
+  const validation = (question.validation || {}) as DropdownValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -401,7 +402,7 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
 function validateDatetimeValue(fieldValue: string, question: Question) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as DatetimeValidation;
+  const validation = (question.validation || {}) as DatetimeValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -437,7 +438,7 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
 function validateNumberValue(fieldValue: number | any, question: Question) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as NumberValidation;
+  const validation = (question.validation || {}) as NumberValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -503,7 +504,7 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
 function validateStringValue(fieldValue: string | any, question: Question) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as StringValidation;
+  const validation = (question.validation || {}) as StringValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -696,9 +697,8 @@ export const uploadFile = async (
                   details: [
                     {
                       field_id: questionId,
-                      message: `File size exceeds maximum limit of ${
-                        MAX_FILE_SIZE / (1024 * 1024)
-                      }MB`,
+                      message: `File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)
+                        }MB`,
                     },
                   ],
                 })
@@ -755,9 +755,8 @@ export const uploadFile = async (
     };
 
     // upload file to firebase
-    const fileName = `${USER_UPLOAD_PATH}${UID}_${
-      question.id
-    }.${safeFileData.originalname.split(".").pop()}`;
+    const fileName = `${USER_UPLOAD_PATH}${UID}_${question.id
+      }.${safeFileData.originalname.split(".").pop()}`;
     const fileUpload = bucket.file(fileName);
 
     // check if file exists and delete it
@@ -783,7 +782,9 @@ export const uploadFile = async (
       stream.on("finish", async () => {
         try {
           await fileUpload.makePublic();
-          const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+          const publicUrl = isEmulator
+            ? `http://127.0.0.1:9199/${bucket.name}/${fileName}`
+            : `https://storage.googleapis.com/${bucket.name}/${fileName}`;
           resolve(publicUrl);
         } catch (err) {
           reject(err);

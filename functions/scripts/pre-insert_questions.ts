@@ -37,7 +37,7 @@ type Quest = {
 
 export const allQuestionsData: Quest[] = [
   {
-    id: "first_name",
+    id: "firstName",
     text: "First Name",
     state: APPLICATION_STATES.PROFILE,
     type: QUESTION_TYPE.STRING,
@@ -49,7 +49,7 @@ export const allQuestionsData: Quest[] = [
     order: 1,
   },
   {
-    id: "last_name",
+    id: "lastName",
     text: "Last Name",
     state: APPLICATION_STATES.PROFILE,
     type: QUESTION_TYPE.STRING,
@@ -61,7 +61,7 @@ export const allQuestionsData: Quest[] = [
     order: 2,
   },
   {
-    id: "gender_identity",
+    id: "genderIdentity",
     text: "Gender Identity",
     state: APPLICATION_STATES.PROFILE,
     type: QUESTION_TYPE.DROPDOWN,
@@ -70,7 +70,7 @@ export const allQuestionsData: Quest[] = [
     order: 3,
   },
   {
-    id: "date_of_birth",
+    id: "dateOfBirth",
     text: "Date of Birth",
     state: APPLICATION_STATES.PROFILE,
     type: QUESTION_TYPE.DATE,
@@ -350,6 +350,7 @@ export const allQuestionsData: Quest[] = [
     type: QUESTION_TYPE.STRING,
     required: true,
     validation: {
+      pattern: "^[a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,}$",
       maxLength: 50,
     },
     order: 12,
