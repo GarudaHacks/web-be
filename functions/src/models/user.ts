@@ -5,6 +5,7 @@ export interface AuthResponse {
   emailVerified: boolean
   role: string // if not mentor=true or admin=true
   status: string // application status
+  discord_uid?: string
 }
 
 export interface User {
@@ -24,4 +25,5 @@ export interface User {
   github?: string;
   linkedin?: string;
   admin?: boolean;
+  discord_uid?: string;
 }

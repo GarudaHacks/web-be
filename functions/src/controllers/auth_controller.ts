@@ -7,7 +7,6 @@ import * as functions from "firebase-functions";
 import { FirebaseError } from "firebase-admin";
 import { generateCsrfToken } from "../middlewares/csrf_middleware";
 import { APPLICATION_STATUS } from "../types/application_types";
-import nodemailer from "nodemailer";
 import { User, AuthResponse } from "../models/user";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
@@ -40,152 +39,6 @@ const validateEmailAndPassword = (
   }
 
   return true;
-};
-
-// Configure Nodemailer to use Mailtrap's SMTP
-const transporter = nodemailer.createTransport({
-  host: "live.smtp.mailtrap.io",
-  port: 587,
-  auth: {
-    user: process.env.MAILTRAP_USER,
-    pass: process.env.MAILTRAP_PASS,
-  },
-});
-
-interface MailOptions {
-  from: string | { name: string; address: string };
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}
-
-const createPasswordResetMailOptions = (
-  email: string,
-  link: string
-): MailOptions => ({
-  from: {
-    name: "Garuda Hacks",
-    address: "no-reply@garudahacks.com",
-  },
-  to: email,
-  subject: "Reset your Garuda Hacks password",
-  html: `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Reset Your Password</title>
-        <meta name="color-scheme" content="dark">
-        <meta name="supported-color-schemes" content="dark">
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Reset Your Password</h1>
-          <p style="color: #e2e8f0; margin-bottom: 25px;">You requested a password reset. Click the button below to choose a new password:</p>
-          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Reset Password</a>
-          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
-            If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
-          </p>
-          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
-            This link will expire in 1 hour for security reasons.
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-          <p style="margin-top: 10px;">
-            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-          </p>
-        </div>
-      </body>
-    </html>
-  `,
-  text: `Reset Your Password
-
-You requested a password reset. Click the link below to choose a new password:
-
-${link}
-
-If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
-
-This link will expire in 1 hour for security reasons.
-
-© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
-});
-
-const sendPasswordResetEmail = async (
-  email: string,
-  link: string
-): Promise<void> => {
-  const mailOptions = createPasswordResetMailOptions(email, link);
-  await transporter.sendMail(mailOptions);
-  functions.logger.info("Password reset email sent successfully to:", email);
-};
-
-const createVerificationMailOptions = (
-  email: string,
-  link: string
-): MailOptions => ({
-  from: {
-    name: "Garuda Hacks",
-    address: "no-reply@garudahacks.com",
-  },
-  to: email,
-  subject: "Verify your Garuda Hacks account",
-  html: `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Verify Your Account</title>
-        <meta name="color-scheme" content="dark">
-        <meta name="supported-color-schemes" content="dark">
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Welcome to Garuda Hacks!</h1>
-          <p style="color: #e2e8f0; margin-bottom: 25px;">Thank you for registering. Please verify your email address by clicking the button below:</p>
-          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Verify Email</a>
-          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
-            If you didn't create an account with us, you can safely ignore this email.
-          </p>
-          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
-            This verification link will expire in 24 hours.
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-          <p style="margin-top: 10px;">
-            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-          </p>
-        </div>
-      </body>
-    </html>
-  `,
-  text: `Welcome to Garuda Hacks!
-
-Thank you for registering. Please verify your email address by clicking the link below:
-
-${link}
-
-If you didn't create an account with us, you can safely ignore this email.
-
-This verification link will expire in 24 hours.
-
-© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
-});
-
-const sendVerificationEmail = async (
-  email: string,
-  link: string
-): Promise<void> => {
-  const mailOptions = createVerificationMailOptions(email, link);
-  await transporter.sendMail(mailOptions);
-  functions.logger.info("Verification email sent successfully to:", email);
 };
 
 /**
@@ -258,6 +111,7 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       emailVerified: user.emailVerified,
       status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
       role: deriveRole(user.customClaims),
+      discord_uid: userDoc.data()?.discord_uid,
     };
     res.status(200).json({
       message: "Login successful",
@@ -354,10 +208,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
     // Generate email verification link
     const verificationLink = await auth.generateEmailVerificationLink(email);
-
-    if (process.env.NODE_ENV === "development") {
+    
+    if (process.env.NODE_ENV !== "development") {
       // Send verification email
-      await sendVerificationEmail(email, verificationLink);
+      // TODO : Send email
     }
 
     const customToken = await auth.createCustomToken(user.uid);
@@ -531,6 +385,7 @@ export const sessionLogin = async (
 
   // handle when user is new or existing
   let userStatus: string = APPLICATION_STATUS.NOT_APPLICABLE;
+  let userDiscordUid: string | undefined = undefined;
   try {
     const userDocumentRef = await db.collection("users").doc(user.uid).get();
     if (!userDocumentRef.exists) { // when user is a new user, then populate db
@@ -548,6 +403,7 @@ export const sessionLogin = async (
         });
     } else {
       userStatus = userDocumentRef.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE;
+      userDiscordUid = userDocumentRef.data()?.discord_uid;
       user = await auth.getUserByEmail(decodedIdToken.email);
     }
   } catch (error) {
@@ -592,6 +448,7 @@ export const sessionLogin = async (
       emailVerified: user.emailVerified,
       status: userStatus,
       role: deriveRole(user.customClaims),
+      discord_uid: userDiscordUid,
     };
     res.status(200).json(
       {
@@ -639,6 +496,7 @@ export const sessionCheck = async (
       emailVerified: user.emailVerified,
       status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
       role: deriveRole(user.customClaims),
+      discord_uid: userDoc.data()?.discord_uid,
     };
     res.status(200).json(
       {
@@ -681,8 +539,7 @@ export const requestPasswordReset = async (
     const link = await auth.generatePasswordResetLink(email);
     functions.logger.info("Password reset link generated successfully");
 
-    // Send password reset email
-    await sendPasswordResetEmail(email, link);
+    // TODO : send password reset link
 
     // Send success response
     res.status(200).json({
@@ -734,7 +591,7 @@ export const verifyAccount = async (
 
     const link = await auth.generateEmailVerificationLink(email);
 
-    await sendVerificationEmail(email, link);
+    // await sendVerificationEmail(email, link);
 
     res.status(200).json({
       status: 200,
@@ -837,6 +694,39 @@ export const authDiscord = async (
     const uid = `discord:${id}`
     const avatarUrl = `https://cdn.discordapp.com/avatars/${uid}/${avatarId}.png`
     const userEmail = `${email}`
+
+    if (intent === "connect") {
+      const sessionCookie = req.cookies.__session;
+      if (!sessionCookie) { // verify existing session
+        res.status(401).json({ status: 401, error: "Unauthorized" });
+        return;
+      }
+      let decodedSession;
+      try {
+        decodedSession = await auth.verifySessionCookie(sessionCookie, true);
+      } catch {
+        res.status(401).json({ status: 401, error: "Invalid session" });
+        return;
+      }
+      const callerUid = decodedSession.uid;
+      const callerDoc = await db.collection("users").doc(callerUid).get();
+      const callerData = callerDoc.data();
+      if (callerData?.provider === "Discord") { // reject user that uses Discord provider
+        res.status(400).json({ status: 400, error: "Discord users cannot connect another Discord account" });
+        return;
+      }
+      if (callerData?.discord_uid) { // prevent duplicate links
+        res.status(409).json({ status: 409, error: "A Discord account is already connected" });
+        return;
+      }
+      await db.collection("users").doc(callerUid).update({ // update discord uid
+        discord_uid: id,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      res.status(200).json({ status: 200, message: "Discord account connected successfully" });
+      return;
+    }
+
     try {
       // check if user exist
       await auth.getUserByEmail(email)
@@ -923,6 +813,7 @@ export const authDiscord = async (
       emailVerified: verified,
       status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
       role: deriveRole(discordUser.customClaims),
+      discord_uid: userDoc.data()?.discord_uid,
     };
     res.status(200).json(
       {
