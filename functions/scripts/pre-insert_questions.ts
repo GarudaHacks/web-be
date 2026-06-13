@@ -90,7 +90,7 @@ export const allQuestionsData: Quest[] = [
   },
   {
     id: "countryOfresidence",
-    text: "What is your country of residence? Note: If you are currently studying or working abroad, please fill in the country where you are currently studying or working at.",
+    text: "What is your country of residence? \nNote: If you are currently studying or working abroad, please fill in the country where you are currently studying or working at.",
     state: APPLICATION_STATES.PROFILE,
     type: QUESTION_TYPE.DROPDOWN,
     required: true,
@@ -443,7 +443,7 @@ export const allQuestionsData: Quest[] = [
   },
   {
     id: "pastProjects",
-    text: "Link to your most prominent past project or tech stack summary: (Optional URL field)",
+    text: "Link to your most prominent past project or tech stack summary",
     state: APPLICATION_STATES.SPEED_DATING,
     type: QUESTION_TYPE.STRING,
     required: false,
@@ -508,7 +508,7 @@ export const allQuestionsData: Quest[] = [
   },
   {
     id: "qDreamCreation",
-    text: "Your Dream Creation: Imagine you had all the necessary resources and skills. What would you want to create? Your answer does not have to be a website or an app- it can be anything. Please tell us what you would create, and why you want to create it.",
+    text: "**Your Dream Creation**: Imagine you had all the necessary resources and skills. What would you want to create? Your answer does not have to be a website or an app- it can be anything. Please tell us what you would create, and why you want to create it.",
     state: APPLICATION_STATES.APPLICATION,
     type: QUESTION_TYPE.TEXTAREA,
     placeholder: "Answer in 150 words or less",
@@ -521,7 +521,7 @@ export const allQuestionsData: Quest[] = [
   },
   {
     id: "qProudestMoment",
-    text: "Your Proudest Moment: Tell us about an experience that made you feel very proud of yourself. This may be a time you created something, overcame a difficulty, learned something new, or something else. Elaborate on why you felt so proud.",
+    text: "**Your Proudest Moment**: Tell us about an experience that made you feel very proud of yourself. This may be a time you created something, overcame a difficulty, learned something new, or something else. Elaborate on why you felt so proud.",
     state: APPLICATION_STATES.APPLICATION,
     type: QUESTION_TYPE.TEXTAREA,
     placeholder: "Answer in 150 words or less",
@@ -534,7 +534,7 @@ export const allQuestionsData: Quest[] = [
   },
   {
     id: "qWhyGarudaHacks",
-    text: "Why Garuda Hacks: Please tell us why you decided to join a hackathon. What do you hope to learn or take away from the experience?",
+    text: "**Why Garuda Hacks**: Please tell us why you decided to join a hackathon. What do you hope to learn or take away from the experience?",
     state: APPLICATION_STATES.APPLICATION,
     type: QUESTION_TYPE.TEXTAREA,
     placeholder: "Answer in 150 words or less",
@@ -604,7 +604,7 @@ export const allQuestionsData: Quest[] = [
   },
   {
     id: "signedConsent",
-    text: "Please read and sign the attached Consent Form. If you are below 18, please ask your parent/guardian to sign the form. (https://docs.google.com/document/d/1arI-L7QLBFsDG3PFvflMPYjoRk1e9UXkw3QbHIFDB_k/edit?tab=t.0)",
+    text: "Please read and sign the attached [Consent Form](https://drive.google.com/file/d/1fH5ll1-AgSyCgPXssMSRXWrFG9DYFN7D/view). If you are below 18, please ask your parent/guardian to sign the form.",
     state: APPLICATION_STATES.EMERGENCY_AND_CONSENT,
     type: QUESTION_TYPE.FILE,
     required: true,
@@ -614,7 +614,17 @@ export const allQuestionsData: Quest[] = [
     },
     order: 4,
   },
-
+  {
+    id: "referralCode",
+    text: "Were you referred to join Garuda Hacks 7.0? If you were, please carefully enter your referral code below",
+    state: APPLICATION_STATES.EMERGENCY_AND_CONSENT,
+    type: QUESTION_TYPE.STRING,
+    required: false,
+    validation: {
+      maxLength: 50,
+    },
+    order: 5,
+  },
 
 
   // ADDITIONAL INFO
@@ -684,23 +694,11 @@ export const allQuestionsData: Quest[] = [
     text: "What is your main reason for joining Garuda Hacks 7.0? What attracted you to join? This question will not be graded, this is only to help us improve future events :)",
     state: APPLICATION_STATES.ADDITIONAL_QUESTION,
     type: QUESTION_TYPE.TEXTAREA,
-    placeholder: "Answer in 150 words or less",
+    placeholder: "Answer in 100 words or less",
     required: true,
     validation: {
-      minLength: 100,
-      maxLength: 400,
+      maxLength: 100,
     },
     order: 5,
-  },
-  {
-    id: "referralCode",
-    text: "Were you referred to join Garuda Hacks 7.0? If you were, please carefully enter your referral code below",
-    state: APPLICATION_STATES.EMERGENCY_AND_CONSENT,
-    type: QUESTION_TYPE.STRING,
-    required: false,
-    validation: {
-      maxLength: 50,
-    },
-    order: 6,
   },
 ];
