@@ -682,15 +682,15 @@ export const authDiscord = async (
         'Content-Type': 'application/x-www-form-urlencoded'
       }
     })
-    const { access_token } = tokenResponse.data
+    const { access_token: accessToken } = tokenResponse.data
     // get user's info
     const userResponse = await axios.get("https://discord.com/api/users/@me", {
       headers: {
-        Authorization: `Bearer ${access_token}`
+        Authorization: `Bearer ${accessToken}`
       }
     })
 
-    const { id, avatarId, email, verified, global_name } = userResponse.data
+    const { id, avatarId, email, verified, global_name: globalName } = userResponse.data
     const uid = `discord:${id}`
     const avatarUrl = `https://cdn.discordapp.com/avatars/${uid}/${avatarId}.png`
     const userEmail = `${email}`
@@ -745,7 +745,7 @@ export const authDiscord = async (
         // create collection
         const user = await auth.createUser({
           "uid": uid,
-          "displayName": global_name,
+          "displayName": globalName,
           "email": email,
           "emailVerified": verified,
           "photoURL": avatarUrl,
@@ -809,7 +809,7 @@ export const authDiscord = async (
     const authResponse: AuthResponse = {
       uid,
       email,
-      displayName: global_name,
+      displayName: globalName,
       emailVerified: verified,
       status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
       role: deriveRole(discordUser.customClaims),

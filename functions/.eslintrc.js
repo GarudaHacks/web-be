@@ -28,6 +28,7 @@ module.exports = {
     indent: ["error", 2],
     quotes: "off",
     "import/no-unresolved": 0,
+    "import/no-named-as-default-member": "off",
     "no-restricted-globals": ["error", "name", "length"],
     "prefer-arrow-callback": "error",
     "valid-jsdoc": "off",
