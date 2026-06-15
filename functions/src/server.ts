@@ -9,12 +9,13 @@ import { validateSessionCookie } from "./middlewares/auth_middleware";
 const app = express();
 
 const allowedOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
   "https://garudahacks.com",
   "https://portal.garudahacks.com",
-  "https://preview.portal.garudahacks.com",
+  "https://www.portal.garudahacks.com",
+  "https://staging-portal.garudahacks.com",
+  "http://localhost:5173",
+  "https://hoppscotch.io",
+  "chrome-extension://amknoiejhlmhancpahfcfcfhllgkpbld",
 ];
 
 const corsOptions: CorsOptions = {
@@ -51,6 +52,8 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   if (req.method === "OPTIONS") {
     return next();
   }
+
+  /** Uncomment to disable session validation  */
   validateSessionCookie(req, res, next);
 });
 
@@ -102,7 +105,7 @@ app.use((req: Request, res: Response, next: NextFunction) => {
   }
 
   const timestamp = new Date().toISOString();
-  functions.logger.info(
+  functions.logger.debug(
     `[${timestamp}] Incoming Request Details: ${JSON.stringify(
       logData,
       null,

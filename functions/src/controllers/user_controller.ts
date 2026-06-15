@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { db } from "../config/firebase";
+import { auth, db } from "../config/firebase";
 
 /**
  * Fetch all users
@@ -35,6 +35,40 @@ export const getCurrentUser = async (
     }
 
     res.json({ id: userDoc.id, ...userDoc.data() });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
+
+/**
+ * Delete the account for logged in user. Cleans up the collection
+ * `users` and `applications`.
+ */
+export const deleteAccount = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const userDoc = db.collection("users").doc(userId);
+    const applicationDoc = db.collection("applications").doc(userId);
+
+    const applicationSnapshot = await applicationDoc.get();
+
+    const deletes: Promise<unknown>[] = [userDoc.delete()];
+    if (applicationSnapshot.exists) {
+      deletes.push(applicationDoc.delete());
+    }
+
+    await Promise.all(deletes);
+    await auth.deleteUser(userId);
+
+    res.status(200).json({ success: true });
   } catch (error) {
     res.status(500).json({ error: (error as Error).message });
   }

@@ -7,6 +7,7 @@ import {
   APPLICATION_STATUS,
   DatetimeValidation,
   DropdownValidation,
+  MultiValidation,
   ExtendedRequest,
   FileData,
   FileInfo,
@@ -19,11 +20,28 @@ import {
 import { getUidFromSessionCookie } from "../utils/jwt";
 import * as functions from "firebase-functions";
 
-const bucket = admin.storage().bucket();
-
 // upload file
-const USER_UPLOAD_PATH = `users/uploads/`;
-const STORAGE_BASE_LINK = `https://storage.googleapis.com/${bucket.name}/`;
+const USER_UPLOAD_PATH = `users/uploads/7.0/`; // change for 7.0 hack
+const isEmulator = !!process.env.FIREBASE_STORAGE_EMULATOR_HOST;
+
+/**
+ * Get firebase storage bucket.
+ * @returns 
+ */
+function getBucket() {
+  return admin.storage().bucket();
+}
+
+/**
+ * Get base storage.
+ * @returns 
+ */
+function getStorageBaseLink(): string {
+  const bucket = getBucket();
+  return isEmulator
+    ? `http://127.0.0.1:9199/${bucket.name}/`
+    : `https://storage.googleapis.com/${bucket.name}/`;
+}
 
 const VALID_STATES = Object.values(APPLICATION_STATES);
 
@@ -109,42 +127,68 @@ async function saveData(
   uid: string
 ) {
   try {
+    functions.logger.info(
+      `Starting saveData for user ${uid} in state ${state}`
+    );
+    functions.logger.info(`Data to save: ${JSON.stringify(dataToSave)}`);
+
     // if currently in PROFILE state, then upsert data to `users` collection.
     if (state === APPLICATION_STATES.PROFILE) {
+      functions.logger.info(`Saving to users collection for state ${state}`);
       const userRef = db.collection("users").doc(uid);
       const userDoc = await userRef.get();
 
       const data: Record<string, string> = {
         ...dataToSave,
+        userId: uid,
         updatedAt: new Date().toISOString(),
       };
 
       if (!userDoc.exists) {
+        functions.logger.info(`Creating new user document for ${uid}`);
         data.createdAt = new Date().toISOString();
+      } else {
+        functions.logger.info(`Updating existing user document for ${uid}`);
       }
 
       await userRef.set(data, { merge: true });
+      functions.logger.info(
+        `Successfully saved to users collection for ${uid}`
+      );
     }
 
     // upsert other data in `application` section.
     else {
+      functions.logger.info(
+        `Saving to applications collection for state ${state}`
+      );
       const docRef = db.collection("applications").doc(uid);
       const doc = await docRef.get();
 
       const data: Record<string, string> = {
         ...dataToSave,
+        userId: uid,
         updatedAt: new Date().toISOString(),
       };
 
       if (!doc.exists) {
+        functions.logger.info(`Creating new application document for ${uid}`);
         data.createdAt = new Date().toISOString();
+      } else {
+        functions.logger.info(
+          `Updating existing application document for ${uid}`
+        );
       }
 
       await docRef.set(data, { merge: true });
+      functions.logger.info(
+        `Successfully saved to applications collection for ${uid}`
+      );
     }
   } catch (error) {
-    console.error("Error saving application:", error);
-    throw new Error("Failed to save application");
+    const err = error as Error;
+    functions.logger.error(`Error saving application for user ${uid}:`, err);
+    throw new Error(`Failed to save application: ${err.message}`);
   }
 }
 
@@ -163,11 +207,13 @@ async function constructDataToSave(
     if (question.id === undefined || question.id === null) continue;
     const fieldValue = req.body[question.id];
     // rewrite file path
-    if (question.type === QUESTION_TYPE.FILE && !(fieldValue === undefined || fieldValue === "" || fieldValue === null)) {
+    if (
+      question.type === QUESTION_TYPE.FILE &&
+      !(fieldValue === undefined || fieldValue === "" || fieldValue === null)
+    ) {
       dataToSave[
         question.id
-      ] = `${STORAGE_BASE_LINK}${USER_UPLOAD_PATH}${UID}_${
-        question.id
+      ] = `${getStorageBaseLink()}${USER_UPLOAD_PATH}${UID}_${question.id
       }.${req.body[question.id].split(".").pop()}`;
     } else {
       dataToSave[question.id] = fieldValue;
@@ -187,8 +233,7 @@ function validateApplicationState(req: Request) {
   } else if (!VALID_STATES.includes(req.body.state)) {
     errors.push({
       field_id: `state`,
-      message: `Invalid state ${
-        req.body.state
+      message: `Invalid state ${req.body.state
       }. Must be one of ${VALID_STATES.join(", ")}`,
     });
   }
@@ -251,6 +296,9 @@ async function validateApplicationResponse(req: Request, uid: string) {
     case QUESTION_TYPE.DROPDOWN:
       fieldErrors = validateDropdownValue(fieldValue, question);
       break;
+    case QUESTION_TYPE.MULTI:
+      fieldErrors = validateMultiValue(fieldValue, question);
+      break;
     case QUESTION_TYPE.FILE:
       fieldErrors = await validateFileUploaded(fieldValue, question, uid);
       break;
@@ -275,10 +323,9 @@ async function validateFileUploaded(
   question: Question,
   uid: string
 ) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as FileValidation;
-
+  const validation = (question.validation || {}) as FileValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -304,7 +351,7 @@ async function validateFileUploaded(
     // check in firebase storage
     const fileName = `${uid}_${question.id}.${fieldValue.split(".").pop()}`;
     const fullFilename = `${USER_UPLOAD_PATH}${fileName}`;
-    const fileUpload = bucket.file(fullFilename);
+    const fileUpload = getBucket().file(fullFilename);
 
     const [exists] = await fileUpload.exists();
     if (!exists) {
@@ -334,9 +381,9 @@ async function validateFileUploaded(
 
 // eslint-disable-next-line require-jsdoc
 function validateDropdownValue(fieldValue: string | any, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as DropdownValidation;
+  const validation = (question.validation || {}) as DropdownValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -361,6 +408,10 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
   // check valid value
   const options = question.options;
   if (options && !options.includes(fieldValue)) {
+    const hasOtherOption = options.includes("Other");
+    if (hasOtherOption && fieldValue.startsWith("Other-")) {
+      return errors;
+    }
     errors.push({
       field_id: `${question.id}`,
       message: `Invalid value. Must be one of ${options.join(", ")}`,
@@ -369,11 +420,70 @@ function validateDropdownValue(fieldValue: string | any, question: Question) {
   return errors;
 }
 
+/**
+ * Validate a multiple choice question answers
+ * @param fieldValue 
+ * @param question 
+ * @returns 
+ */
+function validateMultiValue(fieldValue: string[] | any, question: Question) {
+  const errors: { field_id: string; message: string }[] = [];
+
+  const validation = (question.validation || {}) as MultiValidation;
+
+  const isEmpty =
+    fieldValue === undefined ||
+    fieldValue === null ||
+    (Array.isArray(fieldValue) && fieldValue.length === 0);
+
+  if (validation.required !== true && isEmpty) {
+    return errors;
+  }
+
+  if (validation.required === true && isEmpty) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `This field is required`,
+    });
+    return errors;
+  }
+
+  if (!Array.isArray(fieldValue)) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Value must be an array`,
+    });
+    return errors;
+  }
+
+  if (
+    validation.minSelections !== undefined &&
+    fieldValue.length < validation.minSelections
+  ) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Select at least ${validation.minSelections} option(s)`,
+    });
+  }
+
+  if (
+    validation.maxSelections !== undefined &&
+    fieldValue.length > validation.maxSelections
+  ) {
+    errors.push({
+      field_id: `${question.id}`,
+      message: `Select at most ${validation.maxSelections} option(s)`,
+    });
+  }
+
+  return errors;
+}
+
 // eslint-disable-next-line require-jsdoc
 function validateDatetimeValue(fieldValue: string, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as DatetimeValidation;
+  const validation = (question.validation || {}) as DatetimeValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -407,9 +517,9 @@ function validateDatetimeValue(fieldValue: string, question: Question) {
 
 // eslint-disable-next-line require-jsdoc
 function validateNumberValue(fieldValue: number | any, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as NumberValidation;
+  const validation = (question.validation || {}) as NumberValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -431,8 +541,20 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
     return errors;
   }
 
-  // check type
-  if (typeof fieldValue !== "number") {
+  // Convert string to number if needed
+  let numericValue: number;
+  if (typeof fieldValue === "string") {
+    numericValue = Number(fieldValue);
+    if (isNaN(numericValue)) {
+      errors.push({
+        field_id: `${question.id}`,
+        message: `Must be a valid number`,
+      });
+      return errors;
+    }
+  } else if (typeof fieldValue === "number") {
+    numericValue = fieldValue;
+  } else {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be type of number`,
@@ -441,13 +563,13 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
   }
 
   // check value
-  if (validation.minValue && fieldValue < validation.minValue) {
+  if (validation.minValue && numericValue < validation.minValue) {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be more than or equal to ${validation.minValue}`,
     });
   }
-  if (validation.maxValue && fieldValue > validation.maxValue) {
+  if (validation.maxValue && numericValue > validation.maxValue) {
     errors.push({
       field_id: `${question.id}`,
       message: `Must be less than or equal to ${validation.maxValue}`,
@@ -461,9 +583,9 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
  * Validate string value. Also works for textarea.
  */
 function validateStringValue(fieldValue: string | any, question: Question) {
-  const errors: { field_id: string; message: string; }[] = [];
+  const errors: { field_id: string; message: string }[] = [];
 
-  const validation = question.validation as StringValidation;
+  const validation = (question.validation || {}) as StringValidation;
 
   // skip validation if not required and value is empty
   if (
@@ -494,19 +616,50 @@ function validateStringValue(fieldValue: string | any, question: Question) {
     return errors;
   }
 
+  /**
+   * Counts the number of words in a given text string.
+   * @param {string} text - The text to count words from
+   * @returns {number} The number of words in the text
+   */
+  function countWords(text: string): number {
+    if (!text || text.trim() === "") return 0;
+    return text.trim().split(/\s+/).length;
+  }
+
   // check length
-  if (validation.minLength && fieldValue.length < validation.minLength) {
+  if (validation.minLength && countWords(fieldValue) < validation.minLength) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be at least ${validation.minLength} character(s)`,
+      message: `Must be at least ${validation.minLength} word(s)`,
     });
-  } else if (validation.maxLength && fieldValue.length > validation.maxLength) {
+  } else if (
+    validation.maxLength &&
+    countWords(fieldValue) > validation.maxLength
+  ) {
     errors.push({
       field_id: `${question.id}`,
-      message: `Must be less than ${validation.maxLength} character(s)`,
+      message: `Must be less than ${validation.maxLength} word(s)`,
     });
   }
-  
+
+  // check regex pattern
+  // if (validation.pattern) {
+  //   try {
+  //     const regex = new RegExp(validation.pattern);
+  //     if (!regex.test(fieldValue)) {
+  //       errors.push({
+  //         field_id: `${question.id}`,
+  //         message: `Value does not match the required pattern`,
+  //       });
+  //     }
+  //   } catch (regexError) {
+  //     errors.push({
+  //       field_id: `${question.id}`,
+  //       message: `Invalid validation pattern configured`,
+  //     });
+  //   }
+  // }
+
   return errors;
 }
 
@@ -625,8 +778,7 @@ export const uploadFile = async (
                   details: [
                     {
                       field_id: questionId,
-                      message: `File size exceeds maximum limit of ${
-                        MAX_FILE_SIZE / (1024 * 1024)
+                      message: `File size exceeds maximum limit of ${MAX_FILE_SIZE / (1024 * 1024)
                       }MB`,
                     },
                   ],
@@ -684,10 +836,9 @@ export const uploadFile = async (
     };
 
     // upload file to firebase
-    const fileName = `${USER_UPLOAD_PATH}${UID}_${
-      question.id
+    const fileName = `${USER_UPLOAD_PATH}${UID}_${question.id
     }.${safeFileData.originalname.split(".").pop()}`;
-    const fileUpload = bucket.file(fileName);
+    const fileUpload = getBucket().file(fileName);
 
     // check if file exists and delete it
     const [exists] = await fileUpload.exists();
@@ -711,8 +862,11 @@ export const uploadFile = async (
       stream.on("error", reject);
       stream.on("finish", async () => {
         try {
+          const bucket = getBucket()
           await fileUpload.makePublic();
-          const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+          const publicUrl = isEmulator
+            ? `http://127.0.0.1:9199/${bucket.name}/${fileName}`
+            : `https://storage.googleapis.com/${bucket.name}/${fileName}`;
           resolve(publicUrl);
         } catch (err) {
           reject(err);
@@ -928,5 +1082,256 @@ export const setApplicationStatusToSubmitted = async (
       status: 500,
       error: "Internal Server Error",
     });
+  }
+};
+
+export const setApplicationStatusToConfirmedRsvp = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const UID = await getUidFromSessionCookie(req);
+
+    if (!UID) {
+      res.status(400).json({
+        status: 400,
+        error: "Invalid authentication token",
+      });
+      return;
+    }
+
+    const userRef = db.collection("users").doc(UID);
+
+    const data: Record<string, string> = {
+      status: APPLICATION_STATUS.CONFIRMED_RSVP,
+      updatedAt: new Date().toISOString(),
+    };
+
+    await userRef.set(data, { merge: true });
+
+    res.status(201).json({
+      status: 201,
+      success: true,
+      message: "Application status updated to confirmed RSVP",
+    });
+  } catch (err) {
+    functions.logger.error(
+      "Error updating application status to confirmed RSVP:",
+      err
+    );
+    res.status(500).json({
+      status: 500,
+      error: "Internal Server Error",
+    });
+  }
+};
+
+/**
+ * Upload underage consent form file to firebase storage and store the link in Firestore.
+ * This endpoint is specifically for uploading consent forms for underage participants.
+ * The file will be stored with a specific naming convention and the public URL will be
+ * saved to the user's document in Firestore with the key "consent_form".
+ *
+ * Param:
+ * - `file`: consent form file to be uploaded (PDF, DOC, DOCX, etc.)
+ */
+export const uploadConsentForm = async (
+  req: ExtendedRequest,
+  res: Response
+): Promise<void> => {
+  if (!req.headers["content-type"]) {
+    res.status(400).json({
+      status: 400,
+      error: "Missing content-type header",
+    });
+    return;
+  }
+
+  const UID = await getUidFromSessionCookie(req);
+  if (!UID) {
+    res.status(400).json({
+      status: 400,
+      error: "Invalid authentication token",
+    });
+    return;
+  }
+
+  // Define allowed file types for consent forms
+  const ALLOWED_TYPES = [
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "image/jpeg",
+    "image/png",
+    "image/jpg",
+  ];
+
+  const MAX_FILE_SIZE = 5; // 5MB limit for consent forms
+  const busboy = Busboy({
+    headers: req.headers,
+    limits: {
+      fileSize: MAX_FILE_SIZE * 1024 * 1024,
+    },
+  });
+
+  let fileData: FileData | null = null;
+  let fileSizeExceeded = false;
+
+  try {
+    await new Promise((resolve, reject) => {
+      busboy
+        .once("close", resolve)
+        .once("error", reject)
+        .on(
+          "file",
+          (fieldname: string, file: NodeJS.ReadableStream, info: FileInfo) => {
+            const { filename, mimeType } = info;
+
+            if (!ALLOWED_TYPES.includes(mimeType)) {
+              file.resume(); // discard the file
+              return;
+            }
+
+            const chunks: Buffer[] = [];
+            file.on("data", (chunk: Buffer) => {
+              if (!fileSizeExceeded) {
+                chunks.push(chunk);
+              }
+            });
+
+            // handle file size limit
+            file.on("limit", () => {
+              fileSizeExceeded = true;
+              res.writeHead(413, {
+                Connection: "close",
+                "Content-Type": "application/json",
+              });
+              res.end(
+                JSON.stringify({
+                  error: "File too large",
+                  details: [
+                    {
+                      field_id: "consent_form",
+                      message: `File size exceeds maximum limit of ${MAX_FILE_SIZE}MB`,
+                    },
+                  ],
+                })
+              );
+            });
+
+            file.on("end", () => {
+              if (!fileSizeExceeded) {
+                const newfileData: FileData = {
+                  buffer: Buffer.concat(chunks as unknown as Uint8Array[]),
+                  originalname: filename,
+                  mimetype: mimeType,
+                  fieldname: fieldname,
+                };
+                fileData = newfileData;
+              }
+            });
+          }
+        );
+
+      // feed busboy with the request data
+      if (req.rawBody) {
+        busboy.end(req.rawBody);
+      } else {
+        req.pipe(busboy);
+      }
+    });
+
+    // exit early if file size was exceeded
+    if (fileSizeExceeded) {
+      return;
+    }
+
+    if (!fileData) {
+      res.status(400).json({
+        status: 400,
+        error: "Failed to upload",
+        details: [
+          {
+            field_id: "consent_form",
+            message:
+              "No file provided or unsupported file type. Allowed types: PDF, DOC, DOCX, JPEG, PNG",
+          },
+        ],
+      });
+      return;
+    }
+
+    const safeFileData = fileData as {
+      buffer: Buffer;
+      originalname: string;
+      mimetype: string;
+      fieldname: string;
+    };
+
+    // upload file to firebase with specific naming for consent forms
+    const fileName = `${USER_UPLOAD_PATH}${UID}_consent_form.${safeFileData.originalname
+      .split(".")
+      .pop()}`;
+    const bucket = getBucket()
+    const fileUpload = bucket.file(fileName);
+
+    // check if file exists and delete it
+    const [exists] = await fileUpload.exists();
+    if (exists) {
+      await fileUpload.delete();
+    }
+
+    const stream = fileUpload.createWriteStream({
+      metadata: {
+        contentType: safeFileData.mimetype,
+        metadata: {
+          uploadedBy: UID,
+          fileType: "consent_form",
+          uploadedAt: new Date().toISOString(),
+          originalName: safeFileData.originalname,
+        },
+      },
+    });
+
+    const uploadPromise = new Promise((resolve, reject) => {
+      stream.on("error", reject);
+      stream.on("finish", async () => {
+        try {
+          const bucket = getBucket()
+          await fileUpload.makePublic();
+          const publicUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+          resolve(publicUrl);
+        } catch (err) {
+          reject(err);
+        }
+      });
+    });
+
+    stream.end(safeFileData.buffer);
+
+    const publicUrl = await uploadPromise;
+
+    // Save the consent form URL to Firestore
+    const userRef = db.collection("users").doc(UID);
+    await userRef.set(
+      {
+        consent_form: publicUrl,
+        consent_form_uploaded_at: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    res.status(201).json({
+      status: 201,
+      message: "Consent form uploaded successfully",
+      data: {
+        url: publicUrl,
+        consent_form: publicUrl,
+      },
+    });
+  } catch (error) {
+    console.error("Consent form upload error:", error);
+    res.status(500).json({ status: 500, error: "Internal server error" });
   }
 };

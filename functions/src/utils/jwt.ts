@@ -9,11 +9,11 @@ import * as functions from "firebase-functions";
 export function extractSessionFromHeaderOrCookies(req: Request) {
   let idToken;
   if (req.headers.authorization && req.headers.authorization.startsWith("Bearer ")) {
-    functions.logger.log("Found \"Authorization\" header");
+    functions.logger.debug("Found \"Authorization\" header");
     // Extract the token from the header.
     idToken = req.headers.authorization.split("Bearer ")[1];
   } else if (req.cookies.__session) {
-    functions.logger.log("Found \"__session\" cookie");
+    functions.logger.debug("Found \"__session\" cookie");
     idToken = req.cookies.__session;
   }
 
@@ -31,11 +31,10 @@ export function extractSessionFromHeaderOrCookies(req: Request) {
 export function extractSessionCookieFromCookie(req: Request) {
   let sessionCookie;
   if (req.cookies.__session) {
-    functions.logger.log("Found __session cookie");
+    functions.logger.debug("Found __session cookie");
     sessionCookie = req.cookies.__session;
     return sessionCookie;
   }
-  functions.logger.warn("Cannot find __session cookie");
   return;
 }
 
@@ -50,7 +49,7 @@ export async function getUidFromSessionCookie(req: Request): Promise<string | nu
 
   try {
     const decodedToken = await admin.auth().verifySessionCookie(sessionCookie);
-    functions.logger.log("Decoded session cookie", decodedToken);
+    functions.logger.debug("Decoded session cookie", decodedToken);
     return decodedToken.user_id; // this is the Firebase user's UID
   } catch (err) {
     functions.logger.error("Session token verification failed", err);

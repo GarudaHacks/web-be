@@ -2,16 +2,20 @@ import { Request, Response } from "express";
 import { auth, db } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
-import { formatUser, User } from "../models/user";
 import { FieldValue } from "firebase-admin/firestore";
-import { convertResponseToSnakeCase } from "../utils/camel_case";
 import * as functions from "firebase-functions";
 import { FirebaseError } from "firebase-admin";
 import { generateCsrfToken } from "../middlewares/csrf_middleware";
 import { APPLICATION_STATUS } from "../types/application_types";
-import nodemailer from "nodemailer";
+import { User, AuthResponse } from "../models/user";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
+
+const deriveRole = (claims?: Record<string, unknown>): string => {
+  if (claims?.admin === true) return "admin";
+  if (claims?.mentor === true) return "mentor";
+  return "hacker";
+};
 
 const validateEmailAndPassword = (
   email: string,
@@ -37,152 +41,6 @@ const validateEmailAndPassword = (
   return true;
 };
 
-// Configure Nodemailer to use Mailtrap's SMTP
-const transporter = nodemailer.createTransport({
-  host: "live.smtp.mailtrap.io",
-  port: 587,
-  auth: {
-    user: process.env.MAILTRAP_USER,
-    pass: process.env.MAILTRAP_PASS,
-  },
-});
-
-interface MailOptions {
-  from: string | { name: string; address: string };
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}
-
-const createPasswordResetMailOptions = (
-  email: string,
-  link: string
-): MailOptions => ({
-  from: {
-    name: "Garuda Hacks",
-    address: "no-reply@garudahacks.com",
-  },
-  to: email,
-  subject: "Reset your Garuda Hacks password",
-  html: `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Reset Your Password</title>
-        <meta name="color-scheme" content="dark">
-        <meta name="supported-color-schemes" content="dark">
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Reset Your Password</h1>
-          <p style="color: #e2e8f0; margin-bottom: 25px;">You requested a password reset. Click the button below to choose a new password:</p>
-          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Reset Password</a>
-          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
-            If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
-          </p>
-          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
-            This link will expire in 1 hour for security reasons.
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-          <p style="margin-top: 10px;">
-            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-          </p>
-        </div>
-      </body>
-    </html>
-  `,
-  text: `Reset Your Password
-
-You requested a password reset. Click the link below to choose a new password:
-
-${link}
-
-If you didn't request this, you can safely ignore this email. Your password will remain unchanged.
-
-This link will expire in 1 hour for security reasons.
-
-© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
-});
-
-const sendPasswordResetEmail = async (
-  email: string,
-  link: string
-): Promise<void> => {
-  const mailOptions = createPasswordResetMailOptions(email, link);
-  await transporter.sendMail(mailOptions);
-  functions.logger.info("Password reset email sent successfully to:", email);
-};
-
-const createVerificationMailOptions = (
-  email: string,
-  link: string
-): MailOptions => ({
-  from: {
-    name: "Garuda Hacks",
-    address: "no-reply@garudahacks.com",
-  },
-  to: email,
-  subject: "Verify your Garuda Hacks account",
-  html: `
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Verify Your Account</title>
-        <meta name="color-scheme" content="dark">
-        <meta name="supported-color-schemes" content="dark">
-      </head>
-      <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-        <div style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-          <h1 style="color: #fff; margin-bottom: 20px; font-size: 32px;">Welcome to Garuda Hacks!</h1>
-          <p style="color: #e2e8f0; margin-bottom: 25px;">Thank you for registering. Please verify your email address by clicking the button below:</p>
-          <a href="${link}" style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">Verify Email</a>
-          <p style="color: #a0aec0; font-size: 14px; margin-top: 30px; border-top: 1px solid #4a5568; padding-top: 20px;">
-            If you didn't create an account with us, you can safely ignore this email.
-          </p>
-          <p style="color: #718096; font-size: 12px; margin-top: 20px;">
-            This verification link will expire in 24 hours.
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-          <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-          <p style="margin-top: 10px;">
-            <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-            <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-          </p>
-        </div>
-      </body>
-    </html>
-  `,
-  text: `Welcome to Garuda Hacks!
-
-Thank you for registering. Please verify your email address by clicking the link below:
-
-${link}
-
-If you didn't create an account with us, you can safely ignore this email.
-
-This verification link will expire in 24 hours.
-
-© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.`,
-});
-
-const sendVerificationEmail = async (
-  email: string,
-  link: string
-): Promise<void> => {
-  const mailOptions = createVerificationMailOptions(email, link);
-  await transporter.sendMail(mailOptions);
-  functions.logger.info("Verification email sent successfully to:", email);
-};
-
 /**
  * Logs in user
  */
@@ -206,7 +64,10 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       })
     ).data;
 
+    // Get user detail
     const user = await auth.getUserByEmail(email);
+
+    const userDoc = await db.collection("users").doc(user.uid).get()
 
     try {
       const cookies = await auth.createSessionCookie(token.idToken, {
@@ -243,14 +104,19 @@ export const login = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.status(200).json(
-      convertResponseToSnakeCase({
-        message: "Login successful",
-        user: {
-          email: user.email,
-          displayName: user.displayName,
-        },
-      })
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: user.email ?? "",
+      displayName: user.displayName ?? "",
+      emailVerified: user.emailVerified,
+      status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(user.customClaims),
+      discord_uid: userDoc.data()?.discord_uid,
+    };
+    res.status(200).json({
+      message: "Login successful",
+      user: authResponse,
+    }
     );
   } catch (error) {
     const err = error as Error;
@@ -276,10 +142,15 @@ export const register = async (req: Request, res: Response): Promise<void> => {
 
   let user;
   try {
+    let verified = false
+    if (process.env.NODE_ENV === "development") {
+      verified = true
+    }
     user = await auth.createUser({
       displayName: name,
       email,
       password,
+      "emailVerified": verified
     });
     // set custom claims to user
     await auth.setCustomUserClaims(user.uid, {
@@ -287,19 +158,19 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     });
   } catch (error) {
     const err = error as FirebaseError;
-    if (err.code.match("auth/email-already-exists")) {
+    if (err.code?.match("auth/email-already-exists")) {
       res.status(409).json({
         status: 409,
         error: "Email already exists",
       });
-      return
+      return;
     } else {
       functions.logger.error("Error when trying to register an user:", err);
       res.status(500).json({
         status: 500,
-        error: "Something went wrong"
-      })
-      return
+        error: "Something went wrong",
+      });
+      return;
     }
   }
 
@@ -307,12 +178,11 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   try {
     const existingUserRef = await db.collection("users").doc(user.uid).get();
     if (!existingUserRef.exists) {
-      const userData: User = formatUser({
-        email: user.email ?? "",
-        firstName: user.displayName ?? "",
+      const userData: User = {
+        email: email ?? "",
+        displayName: name ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
-      });
-
+      };
       await db
         .collection("users")
         .doc(user.uid)
@@ -322,7 +192,10 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         });
     }
   } catch (error) {
-    functions.logger.error("Error when checking existing user for registration:", error);
+    functions.logger.error(
+      "Error when checking existing user for registration:",
+      error
+    );
     res.status(500).json({
       status: 500,
       error: "Something went wrong",
@@ -330,16 +203,17 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     return;
   }
 
-
   try {
-
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     // Generate email verification link
-    const verificationLink = await auth.generateEmailVerificationLink(email);
-
-    // Send verification email
-    await sendVerificationEmail(email, verificationLink);
+    // const verificationLink = await auth.generateEmailVerificationLink(email);
+    // TODO : enable
+    
+    if (process.env.NODE_ENV !== "development") {
+      // Send verification email
+      // TODO : Send email
+    }
 
     const customToken = await auth.createCustomToken(user.uid);
 
@@ -385,16 +259,20 @@ export const register = async (req: Request, res: Response): Promise<void> => {
       return;
     }
 
-    res.status(201).json(
-      convertResponseToSnakeCase({
-        status: 201,
-        message:
-          "Registration successful. Please check your email for verification link.",
-        user: {
-          email: user.email,
-          displayName: user.displayName,
-        },
-      })
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: user.email ?? "",
+      displayName: user.displayName ?? "",
+      emailVerified: user.emailVerified,
+      status: APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(user.customClaims),
+    };
+    res.status(201).json({
+      status: 201,
+      message:
+        "Registration successful. Please check your email for verification link.",
+      user: authResponse,
+    }
     );
   } catch (error) {
     const err = error as Error;
@@ -507,15 +385,16 @@ export const sessionLogin = async (
   }
 
   // handle when user is new or existing
+  let userStatus: string = APPLICATION_STATUS.NOT_APPLICABLE;
+  let userDiscordUid: string | undefined = undefined;
   try {
     const userDocumentRef = await db.collection("users").doc(user.uid).get();
-    // when user is a new user, then populate db
-    if (!userDocumentRef.exists) {
-      const userData: User = formatUser({
+    if (!userDocumentRef.exists) { // when user is a new user, then populate db
+      const userData: User = {
         email: user.email ?? "",
-        firstName: user.displayName ?? "",
+        displayName: user.displayName ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
-      });
+      };
       await db
         .collection("users")
         .doc(user.uid)
@@ -524,11 +403,16 @@ export const sessionLogin = async (
           createdAt: FieldValue.serverTimestamp(),
         });
     } else {
+      userStatus = userDocumentRef.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE;
+      userDiscordUid = userDocumentRef.data()?.discord_uid;
       user = await auth.getUserByEmail(decodedIdToken.email);
     }
   } catch (error) {
-    functions.logger.error("Error when trying to check if user existed for session login", error);
-    return
+    functions.logger.error(
+      "Error when trying to check if user existed for session login",
+      error
+    );
+    return;
   }
 
   // finally, set cookie
@@ -558,14 +442,22 @@ export const sessionLogin = async (
       sameSite: "strict",
     });
 
-    res.status(200).json({
-      status: 200,
-      message: "Login successful",
-      user: {
-        email: user.email,
-        displayName: user.displayName,
-      },
-    });
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: user.email ?? "",
+      displayName: user.displayName ?? "",
+      emailVerified: user.emailVerified,
+      status: userStatus,
+      role: deriveRole(user.customClaims),
+      discord_uid: userDiscordUid,
+    };
+    res.status(200).json(
+      {
+        status: 200,
+        message: "Login successful",
+        user: authResponse,
+      }
+    );
   } catch (e) {
     functions.logger.error("Error when trying to session login", e);
     res.status(500).json({ status: 500, error: "Something went wrong" });
@@ -596,18 +488,24 @@ export const sessionCheck = async (
 
     // Get user data to check email verification status
     const user = await auth.getUser(decodedSessionCookie.sub);
+    const userDoc = await db.collection("users").doc(user.uid).get();
 
-    res.status(200).json({
-      status: 200,
-      message: "Session is valid",
-      data: {
-        user: {
-          email: decodedSessionCookie.email,
-          displayName: decodedSessionCookie.name,
-          emailVerified: user.emailVerified,
-        },
-      },
-    });
+    const authResponse: AuthResponse = {
+      uid: user.uid,
+      email: decodedSessionCookie.email ?? "",
+      displayName: decodedSessionCookie.name ?? "",
+      emailVerified: user.emailVerified,
+      status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(user.customClaims),
+      discord_uid: userDoc.data()?.discord_uid,
+    };
+    res.status(200).json(
+      {
+        status: 200,
+        message: "Session is valid",
+        user: authResponse,
+      }
+    );
     return;
   } catch (e) {
     functions.logger.error("Error when trying to check session", e);
@@ -639,11 +537,11 @@ export const requestPasswordReset = async (
     // Generate password reset link
     functions.logger.info("Generating password reset link for:", email);
 
-    const link = await auth.generatePasswordResetLink(email);
+    // const link = await auth.generatePasswordResetLink(email);
+    // TODO: enable feature
     functions.logger.info("Password reset link generated successfully");
 
-    // Send password reset email
-    await sendPasswordResetEmail(email, link);
+    // TODO : send password reset link
 
     // Send success response
     res.status(200).json({
@@ -693,9 +591,10 @@ export const verifyAccount = async (
       return;
     }
 
-    const link = await auth.generateEmailVerificationLink(email);
+    // const link = await auth.generateEmailVerificationLink(email);
+    // TODO : enable
 
-    await sendVerificationEmail(email, link);
+    // await sendVerificationEmail(email, link);
 
     res.status(200).json({
       status: 200,
@@ -711,3 +610,240 @@ export const verifyAccount = async (
     });
   }
 };
+
+export const getCurrentUserRole = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    /**
+     * Check request:
+     * 1. Cookie must be present in header.
+     */
+    const uid = req.user?.uid
+    if (req.user === undefined) {
+      res.status(401).json({
+        status: 401,
+        error: "Unauthorized"
+      })
+      return;
+    }
+    if (!uid || uid === undefined) {
+      res.status(401).json({
+        status: 401,
+        error: "Unauthorized"
+      })
+      return;
+    }
+
+    /**
+     * Process request:
+     * 1. Get claims of a user. If none, then default to hacker.
+     */
+    if (req.user.mentor === true) {
+      res.status(200).json({
+        status: 200,
+        role: "mentor"
+      })
+      return;
+    }
+
+    res.status(200).json({
+      status: 200,
+      role: "hacker"
+    })
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message })
+  }
+}
+
+/**
+ * Sign-in or sign-up using Discord.
+ * For a new user where email is not present in auth, it will
+ * create a new auth row with provider `email`. The user data
+ * in the collection will be marked as discord:<id>.
+ * @param req 
+ * @param res 
+ */
+export const authDiscord = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const { code, intent } = req.body;
+    const params = new URLSearchParams({
+      client_id: process.env.DISCORD_CLIENT_ID!,
+      client_secret: process.env.DISCORD_CLIENT_SECRET!,
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: process.env.NODE_ENV === "development" ? "http://localhost:5173/auth/discord/callback" : "https://portal.garudahacks.com/auth/discord/callback"
+    })
+    // exchange code for token from Discord
+    const AUTH_URL = "https://discord.com/api/oauth2/token"
+    const tokenResponse = await axios.post(AUTH_URL, params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
+    })
+    const { access_token: accessToken } = tokenResponse.data
+    // get user's info
+    const userResponse = await axios.get("https://discord.com/api/users/@me", {
+      headers: {
+        Authorization: `Bearer ${accessToken}`
+      }
+    })
+
+    const { id, avatarId, email, verified, global_name: globalName } = userResponse.data
+    const uid = `discord:${id}`
+    const avatarUrl = `https://cdn.discordapp.com/avatars/${uid}/${avatarId}.png`
+    const userEmail = `${email}`
+
+    if (intent === "connect") {
+      const sessionCookie = req.cookies.__session;
+      if (!sessionCookie) { // verify existing session
+        res.status(401).json({ status: 401, error: "Unauthorized" });
+        return;
+      }
+      let decodedSession;
+      try {
+        decodedSession = await auth.verifySessionCookie(sessionCookie, true);
+      } catch {
+        res.status(401).json({ status: 401, error: "Invalid session" });
+        return;
+      }
+      const callerUid = decodedSession.uid;
+      const callerDoc = await db.collection("users").doc(callerUid).get();
+      const callerData = callerDoc.data();
+      if (callerData?.provider === "Discord") { // reject user that uses Discord provider
+        res.status(400).json({ status: 400, error: "Discord users cannot connect another Discord account" });
+        return;
+      }
+      if (callerData?.discord_uid) { // prevent duplicate links
+        res.status(409).json({ status: 409, error: "A Discord account is already connected" });
+        return;
+      }
+      await db.collection("users").doc(callerUid).update({ // update discord uid
+        discord_uid: id,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      res.status(200).json({ status: 200, message: "Discord account connected successfully" });
+      return;
+    }
+
+    try {
+      // check if user exist
+      await auth.getUserByEmail(email)
+    } catch (error: any) {
+      const err = error as FirebaseError
+      if (err.code === "auth/user-not-found" && intent === "signup") { // if not found -> new user. init a record
+        // create in auth
+        await db.collection("users").doc(uid).set({
+          userId: uid,
+          discord_uid: id, // save uid as plain number for the discord
+          email: userEmail,
+          provider: "Discord",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        })
+        // create collection
+        const user = await auth.createUser({
+          "uid": uid,
+          "displayName": globalName,
+          "email": email,
+          "emailVerified": verified,
+          "photoURL": avatarUrl,
+        });
+        // set custom claims to user
+        await auth.setCustomUserClaims(user.uid, {
+          role: "User",
+        });
+      } else if (err.code === "auth/user-not-found" && intent === "signin") {
+        functions.logger.error("Error when trying to log in:", err.message);
+        res.status(404).json({ status: 404, error: "No account found. Please sign up first." });
+        return
+      } else {
+        throw err
+      }
+    }
+
+    // then do session login
+    const customToken = await auth.createCustomToken(uid, {
+      role: "User",
+      provider: "Discord"
+    })
+
+    const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
+    const url = isEmulator
+      ? "http://127.0.0.1:9099/identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=dummy-key"
+      : `https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=${process.env.WEB_API_KEY}`;
+
+    const signInResponse = await axios.post(url, {
+      token: customToken,
+      returnSecureToken: true
+    })
+    const { idToken } = signInResponse.data;
+    const sessionCookie = await auth.createSessionCookie(idToken, { expiresIn: SESSION_EXPIRY_SECONDS })
+
+    res.cookie("__session", sessionCookie, {
+      httpOnly: true,
+      maxAge: SESSION_EXPIRY_SECONDS,
+      sameSite: "strict",
+      secure: process.env.NODE_ENV === "production",
+    });
+
+    const csrfToken = generateCsrfToken();
+    // http only cookie
+    res.cookie("CSRF-TOKEN", csrfToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+    // non http only cookie
+    res.cookie("XSRF-TOKEN", csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
+
+    const [userDoc, discordUser] = await Promise.all([
+      db.collection("users").doc(uid).get(),
+      auth.getUser(uid),
+    ]);
+    const authResponse: AuthResponse = {
+      uid,
+      email,
+      displayName: globalName,
+      emailVerified: verified,
+      status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
+      role: deriveRole(discordUser.customClaims),
+      discord_uid: userDoc.data()?.discord_uid,
+    };
+    res.status(200).json(
+      {
+        status: 200,
+        message: "Login successful",
+        user: authResponse,
+      }
+    );
+  } catch (error) {
+    functions.logger.error(error)
+    if (axios.isAxiosError(error)) {
+      res.status(error.response?.status ?? 500).json({ error: error.response?.data ?? error.message })
+    } else {
+      res.status(500).json({ error: (error as Error).message })
+    }
+  }
+}
+
+// interface providerUser {
+//   id: string
+//   email: string
+//   username: string
+// }
+// export const handleOAuthLogin(provider: string, providerUser: providerUser) {
+//   let account = await db.
+// }
+
+// {"id":"305684499763691523","username":"_heryan","avatar":"4ade4d3fc38818f7e92da464b915456b","discriminator":"0","public_flags":0,"flags":0,"banner":null,"accent_color":1453968,"global_name":"Ryan","avatar_decoration_data":null,"collectibles":null,"display_name_styles":null,"banner_color":"#162f90","clan":null,"primary_guild":null,"mfa_enabled":false,"locale":"en-US","premium_type":0,"email":"heryandjaruma@gmail.com","verified":true}
+
+// https://cdn.discordapp.com/avatars/305684499763691523/4ade4d3fc38818f7e92da464b915456b.png
