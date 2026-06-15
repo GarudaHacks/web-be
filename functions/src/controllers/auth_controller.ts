@@ -676,7 +676,7 @@ export const authDiscord = async (
       client_secret: process.env.DISCORD_CLIENT_SECRET!,
       grant_type: "authorization_code",
       code,
-      redirect_uri: process.env.NODE_ENV === "development" ? "http://localhost:5173/auth/discord/callback" : "https://portal.garudahacks.com/auth/discord/callback"
+      redirect_uri: process.env.DISCORD_REDIRECT_URI!
     })
     // exchange code for token from Discord
     const AUTH_URL = "https://discord.com/api/oauth2/token"
