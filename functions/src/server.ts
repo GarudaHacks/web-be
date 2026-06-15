@@ -13,6 +13,7 @@ const allowedOrigins = [
   "https://portal.garudahacks.com",
   "https://www.portal.garudahacks.com",
   "https://staging-portal.garudahacks.com",
+  "https://garudahacks.cloudflareaccess.com",
   "http://localhost:5173",
   "https://hoppscotch.io",
   "chrome-extension://amknoiejhlmhancpahfcfcfhllgkpbld",

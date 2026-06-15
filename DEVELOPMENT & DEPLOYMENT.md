@@ -14,3 +14,9 @@ To deploy staging to staging environment:
 Production:
 
 `firebase deploy --only functions --project default`
+
+## Prefilled Data
+
+You have to fill in some data:
+1. config
+2. questions
