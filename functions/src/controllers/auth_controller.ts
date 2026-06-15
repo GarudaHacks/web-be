@@ -207,7 +207,8 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     // Generate email verification link
-    const verificationLink = await auth.generateEmailVerificationLink(email);
+    // const verificationLink = await auth.generateEmailVerificationLink(email);
+    // TODO : enable
     
     if (process.env.NODE_ENV !== "development") {
       // Send verification email
@@ -536,7 +537,8 @@ export const requestPasswordReset = async (
     // Generate password reset link
     functions.logger.info("Generating password reset link for:", email);
 
-    const link = await auth.generatePasswordResetLink(email);
+    // const link = await auth.generatePasswordResetLink(email);
+    // TODO: enable feature
     functions.logger.info("Password reset link generated successfully");
 
     // TODO : send password reset link
@@ -589,7 +591,8 @@ export const verifyAccount = async (
       return;
     }
 
-    const link = await auth.generateEmailVerificationLink(email);
+    // const link = await auth.generateEmailVerificationLink(email);
+    // TODO : enable
 
     // await sendVerificationEmail(email, link);
 

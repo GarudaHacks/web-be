@@ -75,3 +75,6 @@ node_modules/
 
 # key
 *-key.json
+
+# build
+*/lib
