@@ -8,7 +8,6 @@ import { FirebaseError } from "firebase-admin";
 import { generateCsrfToken } from "../middlewares/csrf_middleware";
 import { APPLICATION_STATUS } from "../types/application_types";
 import { User, AuthResponse } from "../models/user";
-import { send } from "process";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
 
