@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { auth, db } from "../config/firebase";
+import { auth, db, resend } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
 import { FieldValue } from "firebase-admin/firestore";
@@ -8,6 +8,7 @@ import { FirebaseError } from "firebase-admin";
 import { generateCsrfToken } from "../middlewares/csrf_middleware";
 import { APPLICATION_STATUS } from "../types/application_types";
 import { User, AuthResponse } from "../models/user";
+import { send } from "process";
 
 const SESSION_EXPIRY_SECONDS = 14 * 24 * 60 * 60 * 1000; // lasts 2 weeks
 
@@ -207,12 +208,22 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     // Generate email verification link
-    // const verificationLink = await auth.generateEmailVerificationLink(email);
-    // TODO : enable
-    
     if (process.env.NODE_ENV !== "development") {
-      // Send verification email
-      // TODO : Send email
+      const verificationLink = await auth.generateEmailVerificationLink(email);
+      const { error } = await resend.emails.send({
+        from: 'Garuda Hacks <noreply@mail.garudahacks.com>',
+        to: [email],
+        template: {
+          id: 'email-verification',
+          variables: {
+            link: verificationLink
+          }
+        }
+      })
+      if (error) {
+        res.status(500).json({ status: 500, error: error});
+        return
+      }
     }
 
     const customToken = await auth.createCustomToken(user.uid);
@@ -277,7 +288,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(400).json({ status: 400, error: err.message });
+    res.status(500).json({ status: 500, error: err.message });
   }
 };
 
@@ -533,15 +544,25 @@ export const requestPasswordReset = async (
   try {
     // Check if user exists
     await auth.getUserByEmail(email);
-
-    // Generate password reset link
-    functions.logger.info("Generating password reset link for:", email);
-
-    // const link = await auth.generatePasswordResetLink(email);
-    // TODO: enable feature
-    functions.logger.info("Password reset link generated successfully");
-
-    // TODO : send password reset link
+    
+    // Send email
+    if (process.env.NODE_ENV !== "development") {
+      const link = await auth.generatePasswordResetLink(email);
+      const { error } = await resend.emails.send({
+        from: 'Garuda Hacks <noreply@mail.garudahacks.com>',
+        to: [email],
+        template: {
+          id: 'reset-password',
+          variables: {
+            link: link
+          }
+        }
+      })
+      if (error) {
+        res.status(500).json({ status: 500, error: error});
+        return
+      }
+    }
 
     // Send success response
     res.status(200).json({
@@ -591,10 +612,24 @@ export const verifyAccount = async (
       return;
     }
 
-    // const link = await auth.generateEmailVerificationLink(email);
-    // TODO : enable
-
-    // await sendVerificationEmail(email, link);
+    // Send email
+    if (process.env.NODE_ENV !== "development") {
+      const link = await auth.generateEmailVerificationLink(email);
+      const { error } = await resend.emails.send({
+        from: 'Garuda Hacks <noreply@mail.garudahacks.com>',
+        to: [email],
+        template: {
+          id: 'email-verification',
+          variables: {
+            link: link
+          }
+        }
+      })
+      if (error) {
+        res.status(500).json({ status: 500, error: error});
+        return
+      }
+    }
 
     res.status(200).json({
       status: 200,
