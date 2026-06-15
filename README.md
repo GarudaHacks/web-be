@@ -105,6 +105,19 @@ Required environment variables:
 - `FIREBASE_CLIENT_EMAIL`
 - `NODE_ENV`
 
+## Matchmaking Caveats and Development Notes
+
+1. Match cards are intentionally minimal (`firstName`, `lastName`, `school`) because the current user profile does not include richer dating fields or photo support.
+2. Discord handle exposure for matched hackers is deferred; hacker documents do not currently store `discordUsername`.
+3. Only the second swiper sees an immediate match response. The first swiper sees new matches on the next `GET /match/matches` fetch because notifications are deferred.
+4. Eligibility is snapshotted by opt-in (`matchEnabled`). If a user's RSVP status changes later, they remain in the matchmaking pool by design.
+5. Opt-in is irreversible for this MVP. There is no opt-out, undo swipe, or unmatch flow.
+6. Deck generation reads all opted-in users plus the caller's prior swipes. This is acceptable for the expected ~500 participant scale.
+7. Reporting is frontend-only for now (mailto to organizers). There is no backend reports collection in this phase.
+8. Incoming likes are intentionally deferred, but the schema is designed to support it later via `swipes` queries on `targetId` and `direction`.
+9. There is no automated test suite in this repository. Validate behavior with Firebase emulators (`cd functions && npm run serve`).
+10. `config/matchConfig` is a required runtime document. In local development it can be seeded by `FakeDataPopulator`; production/staging must create and maintain it manually.
+
 ## 🤝 Contributing
 
 1. Fork the repository
