@@ -11,6 +11,9 @@
 import { db } from "../src/config/firebase"
 import { allQuestionsData } from "./pre-insert_questions"
 
+/**
+ * Insert questions defined in `pre-insert_questions.ts`
+ */
 async function insertQuestions() {
   console.log(`Inserting ${allQuestionsData.length} questions into "questions" collection...`)
 

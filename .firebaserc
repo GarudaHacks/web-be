@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "garuda-hacks-6-0"
-  }
+    "default": "garuda-hacks-6-0",
+    "staging": "garuda-hacks-development"
+  },
+  "targets": {},
+  "etags": {}
 }
