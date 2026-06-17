@@ -179,6 +179,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const existingUserRef = await db.collection("users").doc(user.uid).get();
     if (!existingUserRef.exists) {
       const userData: User = {
+        userId: user.uid,
         email: email ?? "",
         displayName: name ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
@@ -401,6 +402,7 @@ export const sessionLogin = async (
     const userDocumentRef = await db.collection("users").doc(user.uid).get();
     if (!userDocumentRef.exists) { // when user is a new user, then populate db
       const userData: User = {
+        userId: user.uid,
         email: user.email ?? "",
         displayName: user.displayName ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
@@ -770,16 +772,7 @@ export const authDiscord = async (
     } catch (error: any) {
       const err = error as FirebaseError
       if (err.code === "auth/user-not-found" && intent === "signup") { // if not found -> new user. init a record
-        // create in auth
-        await db.collection("users").doc(uid).set({
-          userId: uid,
-          discord_uid: id, // save uid as plain number for the discord
-          email: userEmail,
-          provider: "Discord",
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        })
-        // create collection
+        // create auth user first so Firestore doc isn't orphaned on failure
         const user = await auth.createUser({
           "uid": uid,
           "displayName": globalName,
@@ -787,9 +780,21 @@ export const authDiscord = async (
           "emailVerified": verified,
           "photoURL": avatarUrl,
         });
-        // set custom claims to user
         await auth.setCustomUserClaims(user.uid, {
           role: "User",
+        });
+        const userData: User = {
+          userId: uid,
+          email: userEmail,
+          displayName: globalName ?? "",
+          status: APPLICATION_STATUS.NOT_APPLICABLE,
+          discord_uid: id,
+        };
+        await db.collection("users").doc(uid).set({
+          ...userData,
+          provider: "Discord",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       } else if (err.code === "auth/user-not-found" && intent === "signin") {
         functions.logger.error("Error when trying to log in:", err.message);

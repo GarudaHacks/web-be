@@ -10,7 +10,7 @@ export interface AuthResponse {
 
 export interface User {
   id?: string; // linked to uid in firebase doc (not in the field)
-
+  userId: string; // linked to uid in firebase doc (in the field)
   displayName: string;
   first_name?: string;
   last_name?: string;
