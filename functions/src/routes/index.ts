@@ -4,7 +4,6 @@ import applicationRoutes from "./application";
 import userRoutes from "./user";
 import ticketRoutes from "./ticket";
 import mentorshipRoutes from "./mentorship";
-import matchRoutes from "./match";
 
 const router: Router = express.Router();
 
@@ -13,6 +12,5 @@ router.use("/users", userRoutes);
 router.use("/application", applicationRoutes)
 router.use("/tickets", ticketRoutes);
 router.use("/mentorship", mentorshipRoutes)
-router.use("/match", matchRoutes);
 
 export default router;
