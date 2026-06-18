@@ -4,9 +4,11 @@ import {
   getMatchById,
   getMatchConfigHandler,
   getMatches,
-  getMatchStatus,
+  getMatchStatus, getTeamDeck,
   optInToMatch,
-  swipe,
+  getPassed,
+  getPassedTeams,
+  swipe, swipeTeam, undoSwipe,
 } from "../controllers/match_controller";
 
 const router = express.Router();
@@ -37,6 +39,28 @@ router.get("/matches", async (req: Request, res: Response) => {
 
 router.get("/matches/:id", async (req: Request, res: Response) => {
   await getMatchById(req, res);
+});
+
+
+router.get("/team-deck", async (req: Request, res: Response) => {
+  await getTeamDeck(req, res);
+});
+
+router.post("/team-swipe", async (req: Request, res: Response) => {
+  await swipeTeam(req, res);
+});
+
+
+router.delete("/swipe", async (req: Request, res: Response) => {
+  await undoSwipe(req, res);
+});
+
+router.get("/passed", async (req: Request, res: Response) => {
+  await getPassed(req, res);
+});
+
+router.get("/passed-teams", async (req: Request, res: Response) => {
+  await getPassedTeams(req, res);
 });
 
 export default router;

@@ -11,6 +11,7 @@ export enum NotificationType {
 export interface NotificationData {
   matchId: string;
   user: MatchCardDTO;
+  discordChannelUrl?: string | null;
 }
 
 export interface Notification {
