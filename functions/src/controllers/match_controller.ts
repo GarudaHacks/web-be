@@ -34,67 +34,15 @@ const TEAM_CARDS = "team_cards";
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID ?? "";
-const DISCORD_CATEGORY_NAME = "Speed Dating";
 
 // VIEW_CHANNEL + SEND_MESSAGES + READ_MESSAGE_HISTORY
 const DISCORD_ALLOW_PERMS = "68608";
 const DISCORD_DENY_PERMS = "68608";
 
 // In-memory cache so we only fetch/create the category once per cold start
-let cachedCategoryId: string | null = null;
+const  cachedCategoryId = "1516580941428953101";
 
-/**
- * Returns the Speed Dating category ID, creating it if it doesn't exist.
- */
-const getOrCreateSpeedDatingCategory = async (): Promise<string | null> => {
-  if (cachedCategoryId) return cachedCategoryId;
 
-  try {
-    // Fetch all channels in the guild
-    const res = await fetch(`https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/channels`, {
-      headers: {Authorization: `Bot ${DISCORD_BOT_TOKEN}`},
-    });
-
-    if (!res.ok) return null;
-
-    const channels = await res.json() as {id: string; type: number; name: string}[];
-
-    // Check if category already exists (type 4 = GUILD_CATEGORY)
-    const existing = channels.find(
-      (c) => c.type === 4 && c.name === DISCORD_CATEGORY_NAME
-    );
-
-    if (existing) {
-      cachedCategoryId = existing.id;
-      return cachedCategoryId;
-    }
-
-    // Create it if not found
-    const createRes = await fetch(`https://discord.com/api/v10/guilds/${DISCORD_GUILD_ID}/channels`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bot ${DISCORD_BOT_TOKEN}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        name: DISCORD_CATEGORY_NAME,
-        type: 4,
-      }),
-    });
-
-    if (!createRes.ok) {
-      functions.logger.error(`Failed to create category: ${await createRes.text()}`);
-      return null;
-    }
-
-    const category = await createRes.json() as {id: string};
-    cachedCategoryId = category.id;
-    return cachedCategoryId;
-  } catch (err) {
-    functions.logger.error(`Category error: ${(err as Error).message}`);
-    return null;
-  }
-};
 
 /**
  * Creates a private Discord text channel visible only to the given user IDs.
@@ -110,8 +58,8 @@ const createDiscordPrivateChannel = async (
   }
 
   try {
-    const [categoryId, permissionOverwrites] = await Promise.all([
-      getOrCreateSpeedDatingCategory(),
+    const [ permissionOverwrites] = await Promise.all([
+
       Promise.resolve([
         // Deny @everyone
         {id: DISCORD_GUILD_ID, type: 0, deny: DISCORD_DENY_PERMS, allow: "0"},
@@ -137,7 +85,7 @@ const createDiscordPrivateChannel = async (
           name: channelName,
           type: 0, // GUILD_TEXT
           permission_overwrites: permissionOverwrites,
-          ...(categoryId ? {parent_id: categoryId} : {}),
+          ...(cachedCategoryId ? {parent_id: cachedCategoryId} : {}),
         }),
       }
     );
