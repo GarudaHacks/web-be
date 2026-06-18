@@ -2,6 +2,7 @@ import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
+import { Resend } from "resend";
 
 dotenv.config();
 
@@ -29,6 +30,9 @@ const db = admin.firestore();
 db.settings({ ignoreUndefinedProperties: true });
 const auth = admin.auth();
 
+// Email service
+const resend = new Resend(process.env.RESEND_API_KEY);
+
 /**
  * Populate Firestore with fake data if running in emulator
  * This is useful for testing the API locally
@@ -40,4 +44,4 @@ const auth = admin.auth();
 //   populator.generateFakeData();
 // }
 
-export { admin, db, auth };
+export { admin, db, auth, resend };

@@ -1,5 +1,5 @@
 import { Request, Response } from "express";
-import { auth, db } from "../config/firebase";
+import { auth, db, resend } from "../config/firebase";
 import axios from "axios";
 import validator from "validator";
 import { FieldValue } from "firebase-admin/firestore";
@@ -179,6 +179,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const existingUserRef = await db.collection("users").doc(user.uid).get();
     if (!existingUserRef.exists) {
       const userData: User = {
+        userId: user.uid,
         email: email ?? "",
         displayName: name ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
@@ -207,12 +208,22 @@ export const register = async (req: Request, res: Response): Promise<void> => {
     const isEmulator = process.env.FIREBASE_AUTH_EMULATOR_HOST !== undefined;
 
     // Generate email verification link
-    // const verificationLink = await auth.generateEmailVerificationLink(email);
-    // TODO : enable
-    
     if (process.env.NODE_ENV !== "development") {
-      // Send verification email
-      // TODO : Send email
+      const verificationLink = await auth.generateEmailVerificationLink(email);
+      const { error } = await resend.emails.send({
+        from: 'Garuda Hacks <noreply@mail.garudahacks.com>',
+        to: [email],
+        template: {
+          id: 'email-verification',
+          variables: {
+            link: verificationLink
+          }
+        }
+      })
+      if (error) {
+        res.status(500).json({ status: 500, error: error});
+        return
+      }
     }
 
     const customToken = await auth.createCustomToken(user.uid);
@@ -277,7 +288,7 @@ export const register = async (req: Request, res: Response): Promise<void> => {
   } catch (error) {
     const err = error as Error;
     console.error("error:", err.message);
-    res.status(400).json({ status: 400, error: err.message });
+    res.status(500).json({ status: 500, error: err.message });
   }
 };
 
@@ -391,6 +402,7 @@ export const sessionLogin = async (
     const userDocumentRef = await db.collection("users").doc(user.uid).get();
     if (!userDocumentRef.exists) { // when user is a new user, then populate db
       const userData: User = {
+        userId: user.uid,
         email: user.email ?? "",
         displayName: user.displayName ?? "",
         status: APPLICATION_STATUS.NOT_APPLICABLE,
@@ -533,15 +545,25 @@ export const requestPasswordReset = async (
   try {
     // Check if user exists
     await auth.getUserByEmail(email);
-
-    // Generate password reset link
-    functions.logger.info("Generating password reset link for:", email);
-
-    // const link = await auth.generatePasswordResetLink(email);
-    // TODO: enable feature
-    functions.logger.info("Password reset link generated successfully");
-
-    // TODO : send password reset link
+    
+    // Send email
+    if (process.env.NODE_ENV !== "development") {
+      const link = await auth.generatePasswordResetLink(email);
+      const { error } = await resend.emails.send({
+        from: 'Garuda Hacks <noreply@mail.garudahacks.com>',
+        to: [email],
+        template: {
+          id: 'reset-password',
+          variables: {
+            link: link
+          }
+        }
+      })
+      if (error) {
+        res.status(500).json({ status: 500, error: error});
+        return
+      }
+    }
 
     // Send success response
     res.status(200).json({
@@ -591,10 +613,24 @@ export const verifyAccount = async (
       return;
     }
 
-    // const link = await auth.generateEmailVerificationLink(email);
-    // TODO : enable
-
-    // await sendVerificationEmail(email, link);
+    // Send email
+    if (process.env.NODE_ENV !== "development") {
+      const link = await auth.generateEmailVerificationLink(email);
+      const { error } = await resend.emails.send({
+        from: 'Garuda Hacks <noreply@mail.garudahacks.com>',
+        to: [email],
+        template: {
+          id: 'email-verification',
+          variables: {
+            link: link
+          }
+        }
+      })
+      if (error) {
+        res.status(500).json({ status: 500, error: error});
+        return
+      }
+    }
 
     res.status(200).json({
       status: 200,
@@ -736,16 +772,7 @@ export const authDiscord = async (
     } catch (error: any) {
       const err = error as FirebaseError
       if (err.code === "auth/user-not-found" && intent === "signup") { // if not found -> new user. init a record
-        // create in auth
-        await db.collection("users").doc(uid).set({
-          userId: uid,
-          discord_uid: id, // save uid as plain number for the discord
-          email: userEmail,
-          provider: "Discord",
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        })
-        // create collection
+        // create auth user first so Firestore doc isn't orphaned on failure
         const user = await auth.createUser({
           "uid": uid,
           "displayName": globalName,
@@ -753,9 +780,21 @@ export const authDiscord = async (
           "emailVerified": verified,
           "photoURL": avatarUrl,
         });
-        // set custom claims to user
         await auth.setCustomUserClaims(user.uid, {
           role: "User",
+        });
+        const userData: User = {
+          userId: uid,
+          email: userEmail,
+          displayName: globalName ?? "",
+          status: APPLICATION_STATUS.NOT_APPLICABLE,
+          discord_uid: id,
+        };
+        await db.collection("users").doc(uid).set({
+          ...userData,
+          provider: "Discord",
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
         });
       } else if (err.code === "auth/user-not-found" && intent === "signin") {
         functions.logger.error("Error when trying to log in:", err.message);
