@@ -47,12 +47,12 @@ service cloud.firestore {
     }
 
     function isGarudaAdmin() {
-      return request.auth != null &&
+      return request.auth != null && 
              request.auth.token.email != null &&
              request.auth.token.email_verified == true &&
              request.auth.token.email.matches('.*@garudahacks[.]com$');
     }
-
+    
   	function verifyTeamMembership(requestingUid, resourceOwnerUid, teamId) {
       let teamDoc = get(/databases/$(database)/documents/teams/$(teamId));
       return teamDoc != null &&
@@ -61,7 +61,7 @@ service cloud.firestore {
              requestingUid in teamDoc.data.members &&
              resourceOwnerUid in teamDoc.data.members;
     }
-
+    
     function haveSharedTeam(requestingUid, resourceOwnerUid) {
       let requestingUserDoc = get(/databases/$(database)/documents/users/$(requestingUid));
       let resourceOwnerUserDoc = get(/databases/$(database)/documents/users/$(resourceOwnerUid));
@@ -72,34 +72,23 @@ service cloud.firestore {
              requestingUserDoc.data.team == resourceOwnerUserDoc.data.team &&
              verifyTeamMembership(requestingUid, resourceOwnerUid, requestingUserDoc.data.team);
     }
-
+    
     match /applications/{applicationId} {
       allow read, write: if isGarudaAdmin() ||
       	(request.auth != null && request.auth.uid == applicationId);
     }
-
-    match /notifications/{notificationId} {
-      allow read: if request.auth != null &&
-        request.auth.uid == resource.data.userId;
-      allow update: if request.auth != null &&
-        request.auth.uid == resource.data.userId &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(["seen"]) &&
-        request.resource.data.seen is bool;
-      allow create, delete: if false;
-    }
-
+    
     match /users/{userId} {
-      allow write: if isGarudaAdmin() ||
+      allow write: if isGarudaAdmin() || 
         (request.auth != null && request.auth.uid == userId);
-
+        
       allow read: if isGarudaAdmin() || (request.auth != null && request.auth.uid == userId) || haveSharedTeam(request.auth.uid, userId);
     }
-
-
+    
     match /attendances/{attendanceId} {
     	allow read: if isGarudaAdmin() || resource.data.uid == request.auth.uid || haveSharedTeam(request.auth.uid, resource.data.uid);
     }
-
+    
     match /announcements/{announcementId} {
     	allow read: if true;
       allow update: if request.auth != null
@@ -108,28 +97,28 @@ service cloud.firestore {
         && request.resource.data.seen.size() == resource.data.seen.size() + 1
         && request.resource.data.seen.hasAll([request.auth.uid]);
     }
-
+    
     match /teams/{teamId} {
       allow write, create, read: if true;
       allow delete: if request.auth.uid == resource.data.leader;
     }
-
+    
     match /config/{configId} {
     	allow read: if true;
     }
-
+    
     match /user_mobile/{userId} {
     	allow read, write: if request.auth != null && (request.auth.uid == userId || isGarudaAdmin());
     }
-
+    
     match /schedules/{scheduleId} {
     	allow read: if true;
     }
-
+    
     match /hack_cards/{userId} {
   		allow read, write: if request.auth != null && request.auth.uid == userId;
 		}
-
+    
   	match /team_cards/{teamId} {
   		allow write, create, read: if true;
 		}
@@ -141,6 +130,6 @@ service cloud.firestore {
     match /{document=**} {
       allow read, write: if isGarudaAdmin();
     }
-
+    
   }
-}
+} 
