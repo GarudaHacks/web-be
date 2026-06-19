@@ -28,7 +28,6 @@
     "lodash": "^4.17.21",
     "luxon": "^3.7.1",
     "nodemailer": "^7.0.13",
-    "resend": "^6.14.0",
     "validator": "^13.15.0"
   },
   "devDependencies": {

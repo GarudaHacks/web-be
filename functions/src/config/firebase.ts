@@ -2,7 +2,6 @@ import * as admin from "firebase-admin";
 import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
-import { Resend } from "resend";
 import nodemailer from "nodemailer";
 
 dotenv.config();
@@ -32,7 +31,6 @@ db.settings({ ignoreUndefinedProperties: true });
 const auth = admin.auth();
 
 // Email service
-const resend = new Resend(process.env.RESEND_API_KEY);
 const transporter = nodemailer.createTransport({
   host: process.env.SES_SMTP_HOST,
   port: Number(process.env.SES_SMTP_PORT),
@@ -54,4 +52,4 @@ const transporter = nodemailer.createTransport({
 //   populator.generateFakeData();
 // }
 
-export { admin, db, auth, resend, transporter };
+export { admin, db, auth, transporter };
