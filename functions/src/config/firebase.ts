@@ -3,6 +3,7 @@ import * as dotenv from "dotenv";
 import * as fs from "fs";
 import * as path from "path";
 import { Resend } from "resend";
+import nodemailer from "nodemailer";
 
 dotenv.config();
 
@@ -32,6 +33,15 @@ const auth = admin.auth();
 
 // Email service
 const resend = new Resend(process.env.RESEND_API_KEY);
+const transporter = nodemailer.createTransport({
+  host: process.env.SES_SMTP_HOST,
+  port: Number(process.env.SES_SMTP_PORT),
+  secure: false,
+  auth: {
+    user: process.env.SES_SMTP_USERNAME,
+    pass: process.env.SES_SMTP_PASSWORD,
+  },
+})
 
 /**
  * Populate Firestore with fake data if running in emulator
@@ -44,4 +54,4 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 //   populator.generateFakeData();
 // }
 
-export { admin, db, auth, resend };
+export { admin, db, auth, resend, transporter };
