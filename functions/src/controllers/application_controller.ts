@@ -1049,6 +1049,54 @@ export const getApplicationStatus = async (
   }
 };
 
+const SPEED_DATING_OPTION =
+  "No, I do not have a complete team, but I would like to look for a team through Speed Dating";
+
+/**
+ * Fetches all questions from every state and do check against the required fields.
+ * @param uid 
+ * @returns 
+ */
+async function validateApplicationCompleteness(
+  uid: string
+): Promise<{ field_id: string; message: string }[]> {
+  const missing: { field_id: string; message: string }[] = [];
+
+  const userDoc = await db.collection("users").doc(uid).get();
+  const appDoc = await db.collection("applications").doc(uid).get();
+  const userData = userDoc.exists ? userDoc.data() || {} : {};
+  const appData = appDoc.exists ? appDoc.data() || {} : {};
+
+  const isSpeedDating = appData["teamFormation"] === SPEED_DATING_OPTION;
+
+  const statesToCheck = isSpeedDating
+    ? Object.values(APPLICATION_STATES)
+    : Object.values(APPLICATION_STATES).filter(
+      (s) => s !== APPLICATION_STATES.SPEED_DATING
+    );
+
+  for (const state of statesToCheck) {
+    const questions = await findQuestionsByState(state);
+    const source = state === APPLICATION_STATES.PROFILE ? userData : appData;
+
+    for (const question of questions) {
+      if (!question.id) continue;
+      const validation = question.validation as { required?: boolean };
+      if (!validation?.required) continue;
+
+      const value = source[question.id];
+      if (value === undefined || value === null || value === "") {
+        missing.push({
+          field_id: question.id,
+          message: `Required field "${question.id}" in ${state} is missing`,
+        });
+      }
+    }
+  }
+
+  return missing;
+}
+
 export const setApplicationStatusToSubmitted = async (
   req: Request,
   res: Response
@@ -1060,6 +1108,16 @@ export const setApplicationStatusToSubmitted = async (
       res.status(400).json({
         status: 400,
         error: "Invalid authentication token",
+      });
+      return;
+    }
+
+    const missingFields = await validateApplicationCompleteness(UID);
+    if (missingFields.length > 0) {
+      res.status(400).json({
+        status: 400,
+        error: "Application is incomplete. Please complete all required fields before submitting.",
+        details: missingFields,
       });
       return;
     }
