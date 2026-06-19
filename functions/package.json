@@ -3,7 +3,7 @@
   "description": "Cloud Functions for Firebase",
   "scripts": {
     "lint": "eslint --ext .js,.ts .",
-    "build": "tsc",
+    "build": "tsc && cp src/templates/*.html lib/src/templates/",
     "build:watch": "tsc --watch --preserveWatchOutput",
     "serve": "concurrently \"npm:build:watch\" \"firebase emulators:start\"",
     "shell": "npm run build && firebase functions:shell",
@@ -20,15 +20,14 @@
     "busboy": "^1.6.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.7",
-    "express": "^4.21.2",
+    "dotenv": "^16.6.1",
+    "express": "^4.22.2",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^7.2.5",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "luxon": "^3.7.1",
-    "nodemailer": "^7.0.3",
-    "resend": "^6.12.4",
+    "nodemailer": "^7.0.13",
     "validator": "^13.15.0"
   },
   "devDependencies": {
@@ -37,11 +36,12 @@
     "@types/cookie-parser": "^1.4.9",
     "@types/cors": "^2.8.18",
     "@types/csurf": "^1.11.5",
-    "@types/express": "^5.0.1",
+    "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.9",
     "@types/lodash": "^4.17.16",
     "@types/luxon": "^3.6.2",
-    "@types/nodemailer": "^6.4.17",
+    "@types/node": "^25.9.3",
+    "@types/nodemailer": "^6.4.24",
     "@types/validator": "^13.12.2",
     "@typescript-eslint/eslint-plugin": "^5.62.0",
     "@typescript-eslint/parser": "^5.62.0",
@@ -51,7 +51,8 @@
     "eslint-config-prettier": "^10.1.1",
     "eslint-plugin-import": "^2.25.4",
     "firebase-functions-test": "^3.1.0",
-    "typescript": "^5.8.2"
+    "ts-node-dev": "^2.0.0",
+    "typescript": "^5.9.3"
   },
   "private": true
 }

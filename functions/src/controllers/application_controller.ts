@@ -1,7 +1,8 @@
 import { Request, Response } from "express";
-import { admin, db } from "../config/firebase";
+import { admin, auth, db } from "../config/firebase";
 import validator from "validator";
 import Busboy from "busboy";
+import { sendApplicationSubmittedEmail } from "../utils/email_sender";
 import {
   APPLICATION_STATES,
   APPLICATION_STATUS,
@@ -1071,6 +1072,15 @@ export const setApplicationStatusToSubmitted = async (
     };
 
     await userRef.set(data, { merge: true });
+
+    if (process.env.NODE_ENV !== "development") {
+      auth.getUser(UID).then(user => {
+        if (user.email) {
+          sendApplicationSubmittedEmail(user.email)
+            .catch(err => functions.logger.error('Application submitted email failed:', err));
+        }
+      }).catch(err => functions.logger.error('Failed to fetch user for email:', err));
+    }
 
     res.status(201).json({
       status: 201,
