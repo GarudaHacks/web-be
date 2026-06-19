@@ -7,6 +7,7 @@ import * as functions from "firebase-functions";
 
 
 export async function sendResetPasswordEmail(to: string, passwordResetLink: string) {
+  functions.logger.debug(`Sending reset password email to ${to}`)
   const html = resetPassword({ actionUrl: passwordResetLink });
   const info = await transporter.sendMail({
     from: process.env.SES_FROM_EMAIL,
@@ -18,6 +19,7 @@ export async function sendResetPasswordEmail(to: string, passwordResetLink: stri
 }
 
 export async function sendEmailVerificationEmail(to: string, verificationLink: string) {
+  functions.logger.debug(`Sending verification email to ${to}`)
   const html = welcomeEmail({ actionUrl: verificationLink });
   const info = await transporter.sendMail({
     from: process.env.SES_FROM_EMAIL,
@@ -29,6 +31,7 @@ export async function sendEmailVerificationEmail(to: string, verificationLink: s
 }
 
 export async function sendApplicationSubmittedEmail(to: string) {
+  functions.logger.debug(`Sending application submitted email to ${to}`)
   const html = applicationSubmitted();
   const info = await transporter.sendMail({
     from: process.env.SES_FROM_EMAIL,
