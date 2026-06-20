@@ -89,7 +89,7 @@ export const allQuestionsData: Quest[] = [
     order: 5,
   },
   {
-    id: "countryOfresidence",
+    id: "countryOfResidence",
     text: "What is your country of residence? \nNote: If you are currently studying or working abroad, please fill in the country where you are currently studying or working at.",
     state: APPLICATION_STATES.PROFILE,
     type: QUESTION_TYPE.DROPDOWN,
@@ -394,9 +394,9 @@ export const allQuestionsData: Quest[] = [
     text: "Please list the full names of your team members, separated by commas. (e.g. Dominic Kartadjoemena, Ben Sumali, Hafidz Rizky).",
     state: APPLICATION_STATES.TEAM,
     type: QUESTION_TYPE.STRING,
-    required: true,
+    required: false,
     validation: {
-      maxLength: 50,
+      maxLength: 300,
     },
     order: 3,
   },
@@ -437,7 +437,7 @@ export const allQuestionsData: Quest[] = [
     type: QUESTION_TYPE.STRING,
     required: true,
     validation: {
-      maxLength: 20,
+      maxLength: 300,
     },
     order: 3,
   },

@@ -6,8 +6,6 @@ import { sendApplicationSubmittedEmail } from "../utils/email_sender";
 import {
   APPLICATION_STATES,
   APPLICATION_STATUS,
-  DatetimeValidation,
-  DropdownValidation,
   MultiValidation,
   ExtendedRequest,
   FileData,
@@ -276,7 +274,7 @@ async function validateApplicationResponse(req: Request, uid: string) {
 
     const fieldValue = req.body[question.id];
 
-    if (fieldValue === undefined && fieldValue === "") {
+    if (fieldValue === undefined || fieldValue === "") {
       continue;
     }
 
@@ -326,19 +324,15 @@ async function validateFileUploaded(
 ) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = (question.validation || {}) as FileValidation;
-
-  // skip validation if not required and value is empty
   if (
-    validation.required !== true &&
+    question.required !== true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     return errors;
   }
 
-  // required
   if (
-    validation.required === true &&
+    question.required === true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     errors.push({
@@ -384,19 +378,15 @@ async function validateFileUploaded(
 function validateDropdownValue(fieldValue: string | any, question: Question) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = (question.validation || {}) as DropdownValidation;
-
-  // skip validation if not required and value is empty
   if (
-    validation.required !== true &&
+    question.required !== true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     return errors;
   }
 
-  // required
   if (
-    validation.required === true &&
+    question.required === true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     errors.push({
@@ -437,11 +427,11 @@ function validateMultiValue(fieldValue: string[] | any, question: Question) {
     fieldValue === null ||
     (Array.isArray(fieldValue) && fieldValue.length === 0);
 
-  if (validation.required !== true && isEmpty) {
+  if (question.required !== true && isEmpty) {
     return errors;
   }
 
-  if (validation.required === true && isEmpty) {
+  if (question.required === true && isEmpty) {
     errors.push({
       field_id: `${question.id}`,
       message: `This field is required`,
@@ -484,19 +474,15 @@ function validateMultiValue(fieldValue: string[] | any, question: Question) {
 function validateDatetimeValue(fieldValue: string, question: Question) {
   const errors: { field_id: string; message: string }[] = [];
 
-  const validation = (question.validation || {}) as DatetimeValidation;
-
-  // skip validation if not required and value is empty
   if (
-    validation.required !== true &&
+    question.required !== true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     return errors;
   }
 
-  // required
   if (
-    validation.required === true &&
+    question.required === true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     errors.push({
@@ -522,17 +508,15 @@ function validateNumberValue(fieldValue: number | any, question: Question) {
 
   const validation = (question.validation || {}) as NumberValidation;
 
-  // skip validation if not required and value is empty
   if (
-    validation.required !== true &&
+    question.required !== true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     return errors;
   }
 
-  // required
   if (
-    validation.required === true &&
+    question.required === true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     errors.push({
@@ -588,17 +572,15 @@ function validateStringValue(fieldValue: string | any, question: Question) {
 
   const validation = (question.validation || {}) as StringValidation;
 
-  // skip validation if not required and value is empty
   if (
-    validation.required !== true &&
+    question.required !== true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     return errors;
   }
 
-  // required
   if (
-    validation.required === true &&
+    question.required === true &&
     (fieldValue === undefined || fieldValue === "" || fieldValue === null)
   ) {
     errors.push({
@@ -608,7 +590,6 @@ function validateStringValue(fieldValue: string | any, question: Question) {
     return errors;
   }
 
-  // check type
   if (typeof fieldValue !== "string") {
     errors.push({
       field_id: `${question.id}`,
@@ -617,49 +598,37 @@ function validateStringValue(fieldValue: string | any, question: Question) {
     return errors;
   }
 
-  /**
-   * Counts the number of words in a given text string.
-   * @param {string} text - The text to count words from
-   * @returns {number} The number of words in the text
-   */
   function countWords(text: string): number {
     if (!text || text.trim() === "") return 0;
     return text.trim().split(/\s+/).length;
   }
 
-  // check length
-  if (validation.minLength && countWords(fieldValue) < validation.minLength) {
-    errors.push({
-      field_id: `${question.id}`,
-      message: `Must be at least ${validation.minLength} word(s)`,
-    });
-  } else if (
-    validation.maxLength &&
-    countWords(fieldValue) > validation.maxLength
-  ) {
-    errors.push({
-      field_id: `${question.id}`,
-      message: `Must be less than ${validation.maxLength} word(s)`,
-    });
+  // textarea: word count; string: character count
+  if (question.type === QUESTION_TYPE.TEXTAREA) {
+    if (validation.minLength && countWords(fieldValue) < validation.minLength) {
+      errors.push({
+        field_id: `${question.id}`,
+        message: `Must be at least ${validation.minLength} word(s)`,
+      });
+    } else if (validation.maxLength && countWords(fieldValue) > validation.maxLength) {
+      errors.push({
+        field_id: `${question.id}`,
+        message: `Must be less than ${validation.maxLength} word(s)`,
+      });
+    }
+  } else {
+    if (validation.minLength && fieldValue.length < validation.minLength) {
+      errors.push({
+        field_id: `${question.id}`,
+        message: `Must be at least ${validation.minLength} character(s)`,
+      });
+    } else if (validation.maxLength && fieldValue.length > validation.maxLength) {
+      errors.push({
+        field_id: `${question.id}`,
+        message: `Must be less than ${validation.maxLength} character(s)`,
+      });
+    }
   }
-
-  // check regex pattern
-  // if (validation.pattern) {
-  //   try {
-  //     const regex = new RegExp(validation.pattern);
-  //     if (!regex.test(fieldValue)) {
-  //       errors.push({
-  //         field_id: `${question.id}`,
-  //         message: `Value does not match the required pattern`,
-  //       });
-  //     }
-  //   } catch (regexError) {
-  //     errors.push({
-  //       field_id: `${question.id}`,
-  //       message: `Invalid validation pattern configured`,
-  //     });
-  //   }
-  // }
 
   return errors;
 }
@@ -1081,8 +1050,7 @@ async function validateApplicationCompleteness(
 
     for (const question of questions) {
       if (!question.id) continue;
-      const validation = question.validation as { required?: boolean };
-      if (!validation?.required) continue;
+      if (!question.required) continue;
 
       const value = source[question.id];
       if (value === undefined || value === null || value === "") {

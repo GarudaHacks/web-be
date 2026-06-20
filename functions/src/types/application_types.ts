@@ -82,6 +82,7 @@ export interface Question {
   order: number;
   text: string;
   type: QUESTION_TYPE;
+  required?: boolean;
   validation: ValidationTypeMap[Question["type"]];
   placeholder?: string;
   options?: string[]; // for dropdown only
