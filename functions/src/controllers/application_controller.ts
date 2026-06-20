@@ -1,3 +1,4 @@
+/* eslint-disable require-jsdoc */
 import { Request, Response } from "express";
 import { admin, auth, db } from "../config/firebase";
 import validator from "validator";

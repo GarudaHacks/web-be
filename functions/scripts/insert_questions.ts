@@ -8,8 +8,15 @@
  * Set NODE_ENV=development to target the local emulator instead of production.
  */
 
-import { db } from "../src/config/firebase"
+import * as admin from "firebase-admin"
+import * as serviceAccount from "../prod-key.json"
 import { allQuestionsData } from "./pre-insert_questions"
+
+const app = admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount as admin.ServiceAccount),
+})
+const db = app.firestore()
+db.settings({ ignoreUndefinedProperties: true })
 
 /**
  * Insert questions defined in `pre-insert_questions.ts`
