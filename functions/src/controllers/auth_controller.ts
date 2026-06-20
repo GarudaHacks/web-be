@@ -323,6 +323,17 @@ export const sessionLogin = async (
 ): Promise<void> => {
   const idToken = req.body.id_token;
 
+
+
+    // TEMP DEBUG
+    functions.logger.info("TOKEN DEBUG", {
+        length: idToken?.length,
+        dots: idToken?.split(".").length - 1,
+        prefix: idToken?.slice(0, 15),
+        suffix: idToken?.slice(-15),
+    });
+    functions.logger.info("FULL TOKEN", { idToken });
+
   if (!idToken) {
     functions.logger.warn("Required id_token in the body");
     res.status(400).json({

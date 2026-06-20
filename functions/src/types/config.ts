@@ -5,3 +5,9 @@ export interface MentorshipConfig {
     mentorshipStartDate: Timestamp;
     mentorshipEndDate: Timestamp;
 }
+
+export interface MatchConfig {
+    isMatchOpen: boolean;
+    startDate: Timestamp;
+    endDate: Timestamp;
+}
