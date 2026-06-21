@@ -9,7 +9,7 @@
  */
 
 import * as admin from "firebase-admin"
-import * as serviceAccount from "../prod-key.json"
+import * as serviceAccount from "../staging-key.json"
 import { allQuestionsData } from "./pre-insert_questions"
 
 const app = admin.initializeApp({
