@@ -68,6 +68,7 @@ export type HackCardDoc = {
     short_bio?: string;
     project_interest?: string;
     avatar_url?: string | null;
+    discord?: string;
     created_at?: unknown;
 };
 

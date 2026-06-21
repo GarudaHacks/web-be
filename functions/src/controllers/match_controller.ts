@@ -202,6 +202,13 @@ const mapHackCardProfile = (
   avatarUrl: hackCardData?.avatar_url || "",
 });
 
+// Discord username is sourced from the user's own hack_cards doc
+// (hack_cards/{uid}.discord). Falls back to an empty string if the
+// hack card doesn't exist or has no discord field set.
+const resolveDiscordUsername = (hackCardData: HackCardDoc | null): string => {
+  return hackCardData?.discord || "";
+};
+
 
 const nowUnixSeconds = (): number => Math.floor(Date.now() / 1000);
 
@@ -694,16 +701,16 @@ export const getDeck = async (
     // Build a set of all UIDs that belong to any team (leader or member)
     // This set is then used later to exclude these UIDs from the swipe deck — so users who are already in a team won't appear as candidates.
     /*
-                  usersInTeam = Set {
-                        "SKyN0Cj9gpWLMNmxjcwHl9z68zh2",  // 5ZPMHC member
-                        "Rk9mP2vXnL4QwZ8jYcT6hB3eA7sN",  // 5ZPMHC member
-                        "Ys7nB4eXkP2mT9wQ5hR1vF6jC8dA",  // F8FSVF member
-                        "Lc3gK7hN5tX8qB2mE4vJ9fW1pR6s",  // F8FSVF member
-                        "QHed6r1dlyMq9xRWdNAYoRGjHij1",  // 2B6LKD member
-                        "PHtgki6o4UhtEjrHAUOkYgJMR1T2",  // 2B6LKD member
-                        "98srcveqjnMdZdyEyct7csaxyGN2",  // 2B6LKD member
-                     }
-                 */
+                          usersInTeam = Set {
+                                "SKyN0Cj9gpWLMNmxjcwHl9z68zh2",  // 5ZPMHC member
+                                "Rk9mP2vXnL4QwZ8jYcT6hB3eA7sN",  // 5ZPMHC member
+                                "Ys7nB4eXkP2mT9wQ5hR1vF6jC8dA",  // F8FSVF member
+                                "Lc3gK7hN5tX8qB2mE4vJ9fW1pR6s",  // F8FSVF member
+                                "QHed6r1dlyMq9xRWdNAYoRGjHij1",  // 2B6LKD member
+                                "PHtgki6o4UhtEjrHAUOkYgJMR1T2",  // 2B6LKD member
+                                "98srcveqjnMdZdyEyct7csaxyGN2",  // 2B6LKD member
+                             }
+                         */
     const usersInTeam = new Set<string>();
 
     teamsSnapshot.docs.forEach((doc) => {
@@ -773,31 +780,17 @@ export const getDeck = async (
       selectedCandidates.map((candidate) => candidate.id)
     );
 
-    // Fetch Discord usernames in parallel, deduplicated by discord_uid
-    const allDiscordUids = new Set(
-      selectedCandidates
-        .map((c) => c.data.discord_uid)
-        .filter((id): id is string => id != null)
-    );
-    const discordUsernameMap = new Map<string, string>();
-    await Promise.all(
-      [...allDiscordUids].map(async (discordUid) => {
-        const discordRes = await fetch(`https://elaina.garudahacks.com/api/user/${discordUid}`);
-        const data = await discordRes.json();
-        discordUsernameMap.set(discordUid, data["username"] ?? "");
-      })
-    );
-
-    const deckCards: MatchDeckCardDTO[] = selectedCandidates.map((candidate) =>
-      buildMatchDeckCard(
+    // Discord usernames now come straight from each candidate's own
+    // hack_cards doc (hack_cards/{uid}.discord) — no external API call needed.
+    const deckCards: MatchDeckCardDTO[] = selectedCandidates.map((candidate) => {
+      const hackCardData = hackCards.get(candidate.id) || null;
+      return buildMatchDeckCard(
         candidate.id,
         candidate.data,
-        hackCards.get(candidate.id) || null,
-        candidate.data.discord_uid
-          ? (discordUsernameMap.get(candidate.data.discord_uid) ?? "")
-          : ""
-      )
-    );
+        hackCardData,
+        resolveDiscordUsername(hackCardData)
+      );
+    });
 
 
     console.log(deckCards);
@@ -1231,12 +1224,8 @@ export const getMatchById = async (
       ? (otherHackCardSnapshot.data() as HackCardDoc)
       : null;
 
-    let discordUsername = "";
-    if (otherUserData.discord_uid != null) {
-      const discordRes = await fetch(`https://elaina.garudahacks.com/api/user/${otherUserData.discord_uid}`);
-      const discordData = await discordRes.json();
-      discordUsername = discordData["username"] ?? "";
-    }
+    // Discord username comes from the matched user's own hack_cards doc.
+    const discordUsername = resolveDiscordUsername(otherHackCardData);
 
     console.log({
       id: matchSnapshot.id,
@@ -1305,32 +1294,15 @@ export const getPassed = async (
       getHackCardsByUserId(passedUserIds),
     ]);
 
-    // Collect discord_uids for batch fetch
-    const allDiscordUids = new Set<string>();
-    userSnaps.forEach((snap) => {
-      if (snap.exists) {
-        const d = (snap.data() as MatchUserDoc).discord_uid;
-        if (d != null) allDiscordUids.add(d);
-      }
-    });
-
-    const discordUsernameMap = new Map<string, string>();
-    await Promise.all(
-      [...allDiscordUids].map(async (discordUid) => {
-        const discordRes = await fetch(`https://elaina.garudahacks.com/api/user/${discordUid}`);
-        const data = await discordRes.json();
-        discordUsernameMap.set(discordUid, data["username"] ?? "");
-      })
-    );
-
+    // Discord usernames are read straight off each passed user's hack card —
+    // no external API call needed.
     const passedCards = userSnaps
       .filter((snap) => snap.exists)
       .map((snap) => {
         const passedUserData = snap.data() as MatchUserDoc;
-        const discordUsername = passedUserData.discord_uid
-          ? (discordUsernameMap.get(passedUserData.discord_uid) ?? "")
-          : "";
-        return buildMatchDeckCard(snap.id, passedUserData, hackCards.get(snap.id) ?? null, discordUsername);
+        const hackCardData = hackCards.get(snap.id) ?? null;
+        const discordUsername = resolveDiscordUsername(hackCardData);
+        return buildMatchDeckCard(snap.id, passedUserData, hackCardData, discordUsername);
       });
 
     return res.status(200).json({data: passedCards});
@@ -1408,25 +1380,8 @@ export const getPassedTeams = async (
       ),
     ]);
 
-    // Phase 3: collect unique discord_uids, fetch all at once
-    const allDiscordUids = new Set<string>();
-    teamMemberSnaps.forEach((snaps) => {
-      snaps.forEach((snap) => {
-        const discordUid = snap.exists ? (snap.data() as MatchUserDoc).discord_uid : undefined;
-        if (discordUid != null) allDiscordUids.add(discordUid);
-      });
-    });
-
-    const discordUsernameMap = new Map<string, string>();
-    await Promise.all(
-      [...allDiscordUids].map(async (discordUid) => {
-        const discordRes = await fetch(`https://elaina.garudahacks.com/api/user/${discordUid}`);
-        const data = await discordRes.json();
-        discordUsernameMap.set(discordUid, data["username"] ?? "");
-      })
-    );
-
-    // Phase 4: assemble results
+    // Phase 3: assemble results — discord_username for each member comes
+    // straight from that member's own hack_cards doc, no external API needed.
     const teamCards = validTeams.map(({teamCardSnap, teamSnap, teamData, memberIds}, i) => {
       const teamCard = teamCardSnap.data() as TeamCardDoc;
       const leaderId = teamData?.leader ?? "";
@@ -1434,9 +1389,8 @@ export const getPassedTeams = async (
       const members = memberIds.map((memberId, j) => {
         const userSnap = teamMemberSnaps[i][j];
         const memberUserData = userSnap.exists ? (userSnap.data() as MatchUserDoc) : null;
-        const discordUsername = memberUserData?.discord_uid
-          ? (discordUsernameMap.get(memberUserData.discord_uid) ?? "")
-          : "";
+        const memberHackCard = allHackCards.get(memberId) ?? null;
+        const discordUsername = resolveDiscordUsername(memberHackCard);
         const {firstName, lastName} = resolveUserName(memberUserData ?? {});
         return {
           id: memberId,
@@ -1445,7 +1399,7 @@ export const getPassedTeams = async (
           isLeader: memberId === leaderId,
           discord_uid: memberUserData?.discord_uid ?? "",
           discord_username: discordUsername,
-          ...mapHackCardProfile(allHackCards.get(memberId) ?? null),
+          ...mapHackCardProfile(memberHackCard),
         };
       });
 
@@ -1528,25 +1482,8 @@ export const getTeamDeck = async (
       ),
     ]);
 
-    // Phase 3: collect unique discord_uids across all members, fetch all at once
-    const allDiscordUids = new Set<string>();
-    teamMemberSnaps.forEach((snaps) => {
-      snaps.forEach((snap) => {
-        const uid = snap.exists ? (snap.data() as MatchUserDoc).discord_uid : undefined;
-        if (uid != null) allDiscordUids.add(uid);
-      });
-    });
-
-    const discordUsernameMap = new Map<string, string>();
-    await Promise.all(
-      [...allDiscordUids].map(async (discordUid) => {
-        const discordRes = await fetch(`https://elaina.garudahacks.com/api/user/${discordUid}`);
-        const data = await discordRes.json();
-        discordUsernameMap.set(discordUid, data["username"] ?? "");
-      })
-    );
-
-    // Phase 4: assemble results synchronously
+    // Phase 3: assemble results — discord_username for each member comes
+    // straight from that member's own hack_cards doc, no external API needed.
     const teamCards = validTeams.map(({doc, teamData, memberIds}, i) => {
       const teamCard = doc.data() as TeamCardDoc;
       const leaderId = teamData?.leader ?? "";
@@ -1554,9 +1491,8 @@ export const getTeamDeck = async (
       const members = memberIds.map((memberId, j) => {
         const userSnap = teamMemberSnaps[i][j];
         const userData = userSnap.exists ? (userSnap.data() as MatchUserDoc) : null;
-        const discordUsername = userData?.discord_uid
-          ? (discordUsernameMap.get(userData.discord_uid) ?? "")
-          : "";
+        const memberHackCard = allHackCards.get(memberId) ?? null;
+        const discordUsername = resolveDiscordUsername(memberHackCard);
         const {firstName, lastName} = resolveUserName(userData ?? {});
         return {
           id: memberId,
@@ -1565,7 +1501,7 @@ export const getTeamDeck = async (
           isLeader: memberId === leaderId,
           discord_uid: userData?.discord_uid ?? "",
           discord_username: discordUsername,
-          ...mapHackCardProfile(allHackCards.get(memberId) ?? null),
+          ...mapHackCardProfile(memberHackCard),
         };
       });
 
@@ -1737,4 +1673,3 @@ export const undoSwipe = async (req: Request, res: Response): Promise<Response> 
     return res.status(500).json({error: (error as Error).message});
   }
 };
-

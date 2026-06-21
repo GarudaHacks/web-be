@@ -322,6 +322,9 @@ export const sessionLogin = async (
   res: Response
 ): Promise<void> => {
   const idToken = req.body.id_token;
+
+
+
   if (!idToken) {
     functions.logger.warn("Required id_token in the body");
     res.status(400).json({
@@ -355,13 +358,13 @@ export const sessionLogin = async (
       });
       return;
     }
-    functions.logger.warn("Error when trying to session login user:", error);
+    functions.logger.error("Error when trying to session login user:", error);
     res.status(500).json({ status: 500, error: "Something went wrong" });
     return;
   }
 
   if (decodedIdToken.email === undefined) {
-    functions.logger.warn("Email cannot be found in id token.");
+    functions.logger.error("Email cannot be found in id token.");
     res.status(400).json({ status: 400, error: "Invalid credentials" });
     return;
   }
