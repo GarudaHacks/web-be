@@ -87,20 +87,20 @@ export const getBoardingPassInfo = async (
   res: Response
 ): Promise<void> => {
   try {
-    const applicationSnap = await db.collection("applications").doc(req.user?.uid!).get()
+    const applicationSnap = await db.collection("applications").doc(req.user!.uid).get()
     const applicationData = applicationSnap.data()
-    const userSnap = await db.collection("users").doc(req.user?.uid!).get()
+    const userSnap = await db.collection("users").doc(req.user!.uid).get()
     const userData = userSnap.data()
     res.status(200).json({
-      firstName: applicationData?.lastName,
-      lastName: applicationData?.firstName,
+      firstName: userData?.lastName,
+      lastName: userData?.firstName,
       teamFormation: `${getTeamFormationFromUser(applicationData?.teamFormation)}`,
       teamName: applicationData?.teamName,
       dateOfBirth: userData?.dateOfBirth
-        ? userData.dateOfBirth.toDate().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+        ? new Date(userData.dateOfBirth).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
         : undefined,
-      nationaility: userData?.nationaility,
-      gender: userData?.gender,
+      nationality: userData?.nationality,
+      gender: userData?.genderIdentity,
       affiliation: userData?.occupationPlace,
       email: userData?.email,
       phone: userData?.phone
