@@ -1141,6 +1141,7 @@ export const setApplicationStatusToConfirmedRsvp = async (
 
     const data: Record<string, string> = {
       status: APPLICATION_STATUS.CONFIRMED_RSVP,
+      confirmedRsvpAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 

@@ -73,3 +73,39 @@ export const deleteAccount = async (
     res.status(500).json({ error: (error as Error).message });
   }
 };
+
+/**
+ * Get a string representation of a team formation.
+ */
+function getTeamFormationFromUser(teamFormation: string) {
+  if (teamFormation === "Yes, I already have a team") return "Team"
+  else if (teamFormation === "No, I will be joining Garuda Hacks solo") return "Solo"
+  else return "Speed Dating"
+}
+export const getBoardingPassInfo = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const applicationSnap = await db.collection("applications").doc(req.user?.uid!).get()
+    const applicationData = applicationSnap.data()
+    const userSnap = await db.collection("users").doc(req.user?.uid!).get()
+    const userData = userSnap.data()
+    res.status(200).json({
+      firstName: applicationData?.lastName,
+      lastName: applicationData?.firstName,
+      teamFormation: `${getTeamFormationFromUser(applicationData?.teamFormation)}`,
+      teamName: applicationData?.teamName,
+      dateOfBirth: userData?.dateOfBirth
+        ? userData.dateOfBirth.toDate().toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+        : undefined,
+      nationaility: userData?.nationaility,
+      gender: userData?.gender,
+      affiliation: userData?.occupationPlace,
+      email: userData?.email,
+      phone: userData?.phone
+    })
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+}
