@@ -92,10 +92,10 @@ export const getBoardingPassInfo = async (
     const userSnap = await db.collection("users").doc(req.user!.uid).get()
     const userData = userSnap.data()
     res.status(200).json({
-      firstName: userData?.lastName,
-      lastName: userData?.firstName,
-      acceptedAt: userData?.acceptedAt,
-      confirmedRsvpAt: userData?.confirmedRsvpAt,
+      firstName: userData?.firstName,
+      lastName: userData?.lastName,
+      acceptedAt: userData?.acceptedAt.toDate().toISOString(),
+      confirmedRsvpAt: userData?.confirmedRsvpAt.toDate().toISOString(),
       teamFormation: `${getTeamFormationFromUser(applicationData?.teamFormation)}`,
       teamName: applicationData?.teamName,
       dateOfBirth: userData?.dateOfBirth
