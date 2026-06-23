@@ -94,6 +94,7 @@ export const getBoardingPassInfo = async (
     res.status(200).json({
       firstName: userData?.lastName,
       lastName: userData?.firstName,
+      acceptedAt: userData?.acceptedAt,
       confirmedRsvpAt: userData?.confirmedRsvpAt,
       teamFormation: `${getTeamFormationFromUser(applicationData?.teamFormation)}`,
       teamName: applicationData?.teamName,

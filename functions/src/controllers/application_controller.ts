@@ -19,6 +19,7 @@ import {
 } from "../types/application_types";
 import { getUidFromSessionCookie } from "../utils/jwt";
 import * as functions from "firebase-functions";
+import { FieldValue } from "firebase-admin/firestore";
 
 // upload file
 const USER_UPLOAD_PATH = `users/uploads/7.0/`; // change for 7.0 hack
@@ -138,15 +139,15 @@ async function saveData(
       const userRef = db.collection("users").doc(uid);
       const userDoc = await userRef.get();
 
-      const data: Record<string, string> = {
+      const data: Record<string, unknown> = {
         ...dataToSave,
         userId: uid,
-        updatedAt: new Date().toISOString(),
+        updatedAt: FieldValue.serverTimestamp(),
       };
 
       if (!userDoc.exists) {
         functions.logger.info(`Creating new user document for ${uid}`);
-        data.createdAt = new Date().toISOString();
+        data.createdAt = FieldValue.serverTimestamp();
       } else {
         functions.logger.info(`Updating existing user document for ${uid}`);
       }
@@ -165,15 +166,15 @@ async function saveData(
       const docRef = db.collection("applications").doc(uid);
       const doc = await docRef.get();
 
-      const data: Record<string, string> = {
+      const data: Record<string, unknown> = {
         ...dataToSave,
         userId: uid,
-        updatedAt: new Date().toISOString(),
+        updatedAt: FieldValue.serverTimestamp(),
       };
 
       if (!doc.exists) {
         functions.logger.info(`Creating new application document for ${uid}`);
-        data.createdAt = new Date().toISOString();
+        data.createdAt = FieldValue.serverTimestamp();
       } else {
         functions.logger.info(
           `Updating existing application document for ${uid}`
@@ -823,7 +824,7 @@ export const uploadFile = async (
         metadata: {
           uploadedBy: UID,
           questionId: question.id,
-          uploadedAt: new Date().toISOString(),
+          uploadedAt: FieldValue.serverTimestamp(),
           originalName: safeFileData.originalname,
         },
       },
@@ -1093,9 +1094,9 @@ export const setApplicationStatusToSubmitted = async (
 
     const userRef = db.collection("users").doc(UID);
 
-    const data: Record<string, string> = {
+    const data: Record<string, unknown> = {
       status: APPLICATION_STATUS.SUBMITTED,
-      updatedAt: new Date().toISOString(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     await userRef.set(data, { merge: true });
@@ -1139,10 +1140,10 @@ export const setApplicationStatusToConfirmedRsvp = async (
 
     const userRef = db.collection("users").doc(UID);
 
-    const data: Record<string, string> = {
+    const data: Record<string, unknown> = {
       status: APPLICATION_STATUS.CONFIRMED_RSVP,
-      confirmedRsvpAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+      confirmedRsvpAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
     };
 
     await userRef.set(data, { merge: true });
@@ -1325,7 +1326,7 @@ export const uploadConsentForm = async (
         metadata: {
           uploadedBy: UID,
           fileType: "consent_form",
-          uploadedAt: new Date().toISOString(),
+          uploadedAt: FieldValue.serverTimestamp(),
           originalName: safeFileData.originalname,
         },
       },
@@ -1354,8 +1355,8 @@ export const uploadConsentForm = async (
     await userRef.set(
       {
         consent_form: publicUrl,
-        consent_form_uploaded_at: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        consent_form_uploaded_at: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
       },
       { merge: true }
     );
