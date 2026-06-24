@@ -1,5 +1,6 @@
 import {Request, Response} from "express";
 import * as functions from "firebase-functions";
+import * as admin from "firebase-admin";
 import {db} from "../config/firebase";
 import {APPLICATION_STATUS} from "../types/application_types";
 import {MatchConfig} from "../types/config";
@@ -31,6 +32,7 @@ const RATE_LIMIT_PER_MINUTE = 15;
 const MATCHES = "matches";
 const TEAM_SWIPES = "team_swipes";
 const TEAM_CARDS = "team_cards";
+const USER_MOBILE = "user_mobile";
 
 const DISCORD_BOT_TOKEN = process.env.DISCORD_BOT_TOKEN ?? "";
 const DISCORD_GUILD_ID = process.env.DISCORD_GUILD_ID ?? "";
@@ -130,6 +132,64 @@ const sendDiscordChannelMessage = async (channelUrl: string, message: string): P
   } catch (err) {
     functions.logger.error(`Discord channel message error: ${(err as Error).message}`);
   }
+};
+
+/**
+ * Looks up the user's push token from user_mobile/{uid}.fcm_token.
+ * Returns null if the doc doesn't exist, has no token set, or the lookup fails.
+ * Never throws — callers can treat a null return as "don't send".
+ */
+const getFcmToken = async (uid: string): Promise<string | null> => {
+  try {
+    const snap = await db.collection(USER_MOBILE).doc(uid).get();
+    if (!snap.exists) {
+      return null;
+    }
+    const token = snap.data()?.fcm_token;
+    return typeof token === "string" && token.length > 0 ? token : null;
+  } catch (err) {
+    functions.logger.error(`Failed to fetch fcm token for ${uid}: ${(err as Error).message}`);
+    return null;
+  }
+};
+
+/**
+ * Sends a push notification via FCM. Best-effort: never throws, just logs.
+ * Skips silently if no token is provided.
+ */
+const sendPushNotification = async (
+  fcmToken: string | null,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> => {
+  if (!fcmToken) {
+    return;
+  }
+
+  try {
+    await admin.messaging().send({
+      token: fcmToken,
+      notification: {title, body},
+      ...(data ? {data} : {}),
+    });
+  } catch (err) {
+    functions.logger.error(`Push notification failed: ${(err as Error).message}`);
+  }
+};
+
+/**
+ * Convenience: looks up the user's token then sends. Best-effort, swallows errors.
+ * If the user has no fcm_token on file, this is a silent no-op.
+ */
+const notifyUserPush = async (
+  uid: string,
+  title: string,
+  body: string,
+  data?: Record<string, string>
+): Promise<void> => {
+  const token = await getFcmToken(uid);
+  await sendPushNotification(token, title, body, data);
 };
 
 const buildIndividualMatchMessage = (
@@ -396,6 +456,24 @@ const handleTeamMatch = async (
           individualName,
           teamName
         )
+      )
+      : Promise.resolve(),
+
+    // Push notification: individual matched with the team
+    notifyUserPush(
+      individualUid,
+      "It's a Match!",
+      `You matched with team ${teamName}. Say hi!`,
+      {matchId, type: "team"}
+    ),
+
+    // Push notification: leader matched with the individual
+    leaderId
+      ? notifyUserPush(
+        leaderId,
+        "It's a Match!",
+        `You matched with ${individualName}`.trim(),
+        {matchId, type: "team"}
       )
       : Promise.resolve(),
   ]);
@@ -701,16 +779,16 @@ export const getDeck = async (
     // Build a set of all UIDs that belong to any team (leader or member)
     // This set is then used later to exclude these UIDs from the swipe deck — so users who are already in a team won't appear as candidates.
     /*
-                          usersInTeam = Set {
-                                "SKyN0Cj9gpWLMNmxjcwHl9z68zh2",  // 5ZPMHC member
-                                "Rk9mP2vXnL4QwZ8jYcT6hB3eA7sN",  // 5ZPMHC member
-                                "Ys7nB4eXkP2mT9wQ5hR1vF6jC8dA",  // F8FSVF member
-                                "Lc3gK7hN5tX8qB2mE4vJ9fW1pR6s",  // F8FSVF member
-                                "QHed6r1dlyMq9xRWdNAYoRGjHij1",  // 2B6LKD member
-                                "PHtgki6o4UhtEjrHAUOkYgJMR1T2",  // 2B6LKD member
-                                "98srcveqjnMdZdyEyct7csaxyGN2",  // 2B6LKD member
-                             }
-                         */
+                              usersInTeam = Set {
+                                    "SKyN0Cj9gpWLMNmxjcwHl9z68zh2",  // 5ZPMHC member
+                                    "Rk9mP2vXnL4QwZ8jYcT6hB3eA7sN",  // 5ZPMHC member
+                                    "Ys7nB4eXkP2mT9wQ5hR1vF6jC8dA",  // F8FSVF member
+                                    "Lc3gK7hN5tX8qB2mE4vJ9fW1pR6s",  // F8FSVF member
+                                    "QHed6r1dlyMq9xRWdNAYoRGjHij1",  // 2B6LKD member
+                                    "PHtgki6o4UhtEjrHAUOkYgJMR1T2",  // 2B6LKD member
+                                    "98srcveqjnMdZdyEyct7csaxyGN2",  // 2B6LKD member
+                                 }
+                             */
     const usersInTeam = new Set<string>();
 
     teamsSnapshot.docs.forEach((doc) => {
@@ -1043,6 +1121,25 @@ export const swipe = async (req: Request, res: Response): Promise<Response> => {
           buildIndividualMatchMessage(currentUserData.discord_uid, targetData.discord_uid)
         );
       }
+    }
+
+    // Push notifications for the matched pair (best-effort — never blocks the response)
+    if (matched && matchId) {
+      const resolvedMatchId = matchId as string;
+      await Promise.all([
+        notifyUserPush(
+          uid,
+          "It's a Match!",
+          `You matched with ${targetUserCard.firstName}!`,
+          {matchId: resolvedMatchId, type: "individual"}
+        ),
+        notifyUserPush(
+          targetId,
+          "It's a Match!",
+          `You matched with ${currentUserCard.firstName}!`,
+          {matchId: resolvedMatchId, type: "individual"}
+        ),
+      ]);
     }
 
     // --- Team match cross-check ---
