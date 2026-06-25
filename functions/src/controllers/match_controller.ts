@@ -1239,6 +1239,7 @@ export const swipe = async (req: Request, res: Response): Promise<Response> => {
           if (teamSwipeSnap.exists && (teamSwipeSnap.data() as any).direction === SwipeDirection.RIGHT) {
             const targetUserData = targetSnapshot.data() as MatchUserDoc;
             await handleTeamMatch(targetId, leaderTeamDoc.id, leaderTeamData, targetUserData);
+            matched = true;
           }
         }
       }
@@ -1777,6 +1778,7 @@ export const swipeTeam = async (
 ): Promise<Response> => {
   try {
     const uid = getUidFromRequest(req);
+    const currentTime = nowUnixSeconds();
     if (!uid) {
       return res.status(401).json({error: "Unauthorized"});
     }
@@ -1803,6 +1805,23 @@ export const swipeTeam = async (
     const {inTeam} = await getUserTeamStatus(uid);
     if (inTeam) {
       return res.status(403).json({error: "You are already in a team"});
+    }
+
+
+    const rateLimitCutoff = currentTime - 60;
+
+    const recentTeamSwipeSnapshot = await db
+      .collection(TEAM_SWIPES)
+      .where("swiperId", "==", uid)
+      .where("createdAt", ">", rateLimitCutoff)
+      .orderBy("createdAt", "desc")
+      .limit(RATE_LIMIT_PER_MINUTE)
+      .get();
+
+    if (recentTeamSwipeSnapshot.size >= RATE_LIMIT_PER_MINUTE) {
+      return res.status(429).json({
+        error: "Too many swipes. Please try again shortly.",
+      });
     }
 
     // Check already swiped this team
@@ -1836,7 +1855,7 @@ export const swipeTeam = async (
       return res.status(400).json({error: "This team is already full"});
     }
 
-    const currentTime = nowUnixSeconds();
+
 
     // Save swipe
     await db.collection(TEAM_SWIPES).doc(`${uid}_${teamId}`).set({
@@ -1863,8 +1882,16 @@ export const swipeTeam = async (
         const individualUserData = individualUserSnap.exists
           ? (individualUserSnap.data() as MatchUserDoc)
           : {};
-        await handleTeamMatch(uid, teamId, teamData, individualUserData as MatchUserDoc);
-        teamJoined = true;
+
+        const expectedMatchId = `${teamId}_${uid}`;
+        const existingMatchSnap = await db.collection(MATCHES).doc(expectedMatchId).get();
+
+        if (!existingMatchSnap.exists) {
+          await handleTeamMatch(uid, teamId, teamData, individualUserData as MatchUserDoc);
+          teamJoined = true;
+        }
+        // await handleTeamMatch(uid, teamId, teamData, individualUserData as MatchUserDoc);
+        // teamJoined = true;
       }
     }
 
