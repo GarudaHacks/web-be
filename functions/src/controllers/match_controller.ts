@@ -1363,10 +1363,62 @@ export const getMatchById = async (
       discordChannelUrl: matchData.discordChannelUrl ?? null,
     };
 
+    // if (matchType === "team") {
+    //   const teamId = matchData.teamId;
+    //   if (!teamId) {
+    //     return res.status(404).json({ error: "Team not found for this match" });
+    //   }
+    //
+    //   const team = await buildTeamDeckCard(teamId);
+    //   if (!team) {
+    //     return res.status(404).json({ error: "Team not found" });
+    //   }
+    //
+    //   return res.status(200).json({
+    //     data: {
+    //       ...baseResponse,
+    //       team,
+    //     },
+    //   });
+    // }
+
     if (matchType === "team") {
       const teamId = matchData.teamId;
       if (!teamId) {
         return res.status(404).json({ error: "Team not found for this match" });
+      }
+
+      const teamSnap = await db.collection(TEAMS).doc(teamId).get();
+      const teamData = teamSnap.exists ? (teamSnap.data() as TeamDoc) : null;
+      const requesterIsInTeam =
+              Array.isArray(teamData?.members) && teamData!.members!.includes(uid);
+
+      if (requesterIsInTeam) {
+        const otherUserId = matchData.users.find((userId) => userId !== uid);
+        if (!otherUserId) {
+          return res.status(404).json({ error: "Matched user not found" });
+        }
+
+        const [otherUserSnapshot, otherHackCardSnapshot] = await Promise.all([
+          db.collection(USERS).doc(otherUserId).get(),
+          db.collection(HACK_CARDS).doc(otherUserId).get(),
+        ]);
+        if (!otherUserSnapshot.exists) {
+          return res.status(404).json({ error: "Matched user not found" });
+        }
+
+        const otherUserData = otherUserSnapshot.data() as MatchUserDoc;
+        const otherHackCardData = otherHackCardSnapshot.exists
+          ? (otherHackCardSnapshot.data() as HackCardDoc)
+          : null;
+        const discordUsername = resolveDiscordUsername(otherHackCardData);
+
+        return res.status(200).json({
+          data: {
+            ...baseResponse,
+            user: buildMatchDeckCard(otherUserId, otherUserData, otherHackCardData, discordUsername),
+          },
+        });
       }
 
       const team = await buildTeamDeckCard(teamId);
