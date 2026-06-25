@@ -345,6 +345,12 @@ const parseDeckLimit = (rawLimit: unknown): number => {
   return Math.min(numericLimit, MAX_DECK_SIZE);
 };
 
+// Discord linkage is required to appear in any deck — without it, a match
+// can't get a private channel or pings. Exclude users/leaders missing it.
+const hasDiscordLinked = (userData: MatchUserDoc | null | undefined): boolean => {
+  return !!userData?.discord_uid && userData.discord_uid.length > 0;
+};
+
 const isUserOptedIn = (userData: MatchUserDoc): boolean => {
   return userData.match_enabled === true;
 };
@@ -875,6 +881,12 @@ export const getDeck = async (
       if (!isUserMatchCandidate(candidateData)) {
         return;
       }
+
+      // Skip candidates who haven't linked Discord — they can't be matched into a channel
+      if (!hasDiscordLinked(candidateData)) {
+        return;
+      }
+
 
       // Only show solo users — exclude anyone in a team (leader or member)
       if (usersInTeam.has(candidateId)) {
@@ -1698,7 +1710,8 @@ export const getTeamDeck = async (
       .filter(({memberIds, leaderData}) =>
         memberIds.length < MAX_TEAM_SIZE &&
                 leaderData !== null &&
-                isUserMatchCandidate(leaderData)
+                isUserMatchCandidate(leaderData) &&
+          hasDiscordLinked(leaderData)
       );
 
     // Phase 2: fetch all member user docs + hack cards in parallel across all teams
