@@ -1,7 +1,7 @@
 import {Request, Response} from "express";
 import * as functions from "firebase-functions";
-import * as admin from "firebase-admin";
-import {db} from "../config/firebase";
+
+import {db,admin} from "../config/firebase";
 import {APPLICATION_STATUS} from "../types/application_types";
 import {MatchConfig} from "../types/config";
 import {
@@ -227,25 +227,25 @@ const buildTeamMatchMessage = (
   leaderDiscordUid: string,
   individualName: string,
   teamName: string
-): string => `🎉 **New Team Member!** 🎉
+): string =>  `🎉 **It's a Match!** 🎉
 
-Hey <@${leaderDiscordUid}> & <@${individualDiscordUid}>! **${individualName}** just joined team **${teamName}** on **GarudaHacks Speed Dating**! 🚀
+Hey <@${leaderDiscordUid}> & <@${individualDiscordUid}>! **${individualName}** just matched with team **${teamName}** on **GarudaHacks Speed Dating**! 🚀
 
 ─────────────────────────
 **Here's what to do next:**
 ─────────────────────────
 
-**① 💬 Say Hello!**
-> Welcome your new teammate right here in this channel!
+**① 💬 Say Hi!**
+> Introduce yourselves right here in this channel!
 
-**② 🤝 Get Everyone on the Same Page**
-> Share your project idea, tech stack, and roles with each other.
+**② 🤝 Get to Know Each Other**
+> Share your project idea, tech stack, and what you're each looking for.
 
 **③ 📨 Share the Invite Code**
-> If you think they're a good match, send your **Team Invitation Code** in this channel so they can join via the **GarudaHacks app**!
+> If you think they're a good fit, the team leader can send the **Team Invitation Code** here so they can join!
 
-**④ ✅ Confirm on App**
-> Check the **GarudaHacks app** to see your updated team roster.
+**④ ✅ Join the Team**
+> Enter the Team Code on the **GarudaHacks app** to officially join.
 
 ─────────────────────────
 Good luck and happy hacking! 💪⚡`;
