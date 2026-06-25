@@ -385,6 +385,7 @@ const buildMatchCardFromUser = (
 // };
 
 // Adds individual to the team, notifies both parties.
+// Adds individual to the team, notifies both parties.
 const handleTeamMatch = async (
   individualUid: string,
   teamId: string,
@@ -397,8 +398,12 @@ const handleTeamMatch = async (
   const sortedUsers = [leaderId, individualUid].sort() as [string, string];
   const teamName = teamData.name ?? "";
 
+  // Fetch the individual's hack card so the leader's notification can show
+  // the hack_cards username instead of firstName/lastName when available.
+  const individualHackCard = (await getHackCardsByUserId([individualUid])).get(individualUid) ?? null;
+
   // Build cards for notification data
-  const individualCard = buildMatchCardFromUser(individualUid, individualUserData);
+  const individualCard = buildDisplayCard(individualUid, individualUserData, individualHackCard);
 
   // Fetch leader's discord_uid for private channel creation
   const leaderSnap = leaderId ? await db.collection(USERS).doc(leaderId).get() : null;
@@ -946,6 +951,28 @@ export const getDeck = async (
   }
 };
 
+// Helper: prefer hack_cards username; fall back to firstName/lastName.
+// Keeps MatchCardDTO shape unchanged — username (if present) is placed
+// into firstName, lastName is cleared, so consumers reading
+// `${firstName} ${lastName}`.trim() or `firstName` alone just get the
+// username instead.
+const buildDisplayCard = (
+  userId: string,
+  userData: MatchUserDoc,
+  hackCardData: HackCardDoc | null
+): MatchCardDTO => {
+  const baseCard = buildMatchCardFromUser(userId, userData);
+  const username = hackCardData?.username || "";
+  if (username) {
+    return {
+      ...baseCard,
+      firstName: username,
+      lastName: "",
+    };
+  }
+  return baseCard;
+};
+
 
 export const swipe = async (req: Request, res: Response): Promise<Response> => {
   try {
@@ -1025,14 +1052,24 @@ export const swipe = async (req: Request, res: Response): Promise<Response> => {
     //     firstName: "Aisha",
     //     lastName: "Rahmawati",
     //   }
-    const currentUserCard = buildMatchCardFromUser(uid, currentUserData);
+    // const currentUserCard = buildMatchCardFromUser(uid, currentUserData);
+    //
+    // //   {
+    // //     id: "Rk9mP2vXnL4QwZ8jYcT6hB3eA7sN",
+    // //     firstName: "Aisha",
+    // //     lastName: "Rahmawati",
+    // //   }
+    // const targetUserCard = buildMatchCardFromUser(targetId, targetData);
 
-    //   {
-    //     id: "Rk9mP2vXnL4QwZ8jYcT6hB3eA7sN",
-    //     firstName: "Aisha",
-    //     lastName: "Rahmawati",
-    //   }
-    const targetUserCard = buildMatchCardFromUser(targetId, targetData);
+
+    // Fetch hack cards for both users so notifications can show their
+    // hack_cards username instead of firstName/lastName when available.
+    const swipeHackCards = await getHackCardsByUserId([uid, targetId]);
+    const currentUserHackCard = swipeHackCards.get(uid) ?? null;
+    const targetUserHackCard = swipeHackCards.get(targetId) ?? null;
+
+    const currentUserCard = buildDisplayCard(uid, currentUserData, currentUserHackCard);
+    const targetUserCard = buildDisplayCard(targetId, targetData, targetUserHackCard);
 
     // currentime
     const currentTime = nowUnixSeconds();
@@ -1890,6 +1927,8 @@ export const swipeTeam = async (
           await handleTeamMatch(uid, teamId, teamData, individualUserData as MatchUserDoc);
           teamJoined = true;
         }
+
+        // not that important
         // await handleTeamMatch(uid, teamId, teamData, individualUserData as MatchUserDoc);
         // teamJoined = true;
       }
