@@ -112,6 +112,23 @@ export interface MatchDetailDTO extends MatchDeckCardDTO {
     discord: string;
 }
 
+// Team deck/match card: team profile + member cards.
+export interface TeamMemberCardDTO extends MatchDeckCardDTO {
+    isLeader: boolean;
+}
+
+export interface TeamDeckCardDTO {
+    teamId: string;
+    teamName: string;
+    memberCount: number;
+    availableSlots: number;
+    role: string;
+    skills: string[];
+    shortBio: string;
+    projectInterest: string;
+    members: TeamMemberCardDTO[];
+}
+
 export const formatMatchCard = (
   data: Partial<MatchCardDTO> & { id?: string }
 ): MatchCardDTO => ({

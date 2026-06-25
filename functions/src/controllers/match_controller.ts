@@ -11,6 +11,7 @@ import {
   HackCardProfile, Match, MatchCardDTO,
   MatchDeckCardDTO,
   MatchUserDoc,
+  TeamDeckCardDTO,
   // MatchDetailDTO,
   Swipe,
   SwipeDirection, TeamCardDoc, TeamDoc
@@ -556,6 +557,56 @@ const buildMatchDeckCard = (
     discord_username: discordUsername,
     ...mapHackCardProfile(hackCardData),
   });
+};
+
+const buildTeamDeckCard = async (teamId: string): Promise<TeamDeckCardDTO | null> => {
+  const [teamSnap, teamCardSnap] = await Promise.all([
+    db.collection(TEAMS).doc(teamId).get(),
+    db.collection(TEAM_CARDS).doc(teamId).get(),
+  ]);
+
+  if (!teamSnap.exists || !teamCardSnap.exists) {
+    return null;
+  }
+
+  const teamData = teamSnap.data() as TeamDoc;
+  const teamCard = teamCardSnap.data() as TeamCardDoc;
+  const memberIds = Array.isArray(teamData.members) ? teamData.members : [];
+  const leaderId = teamData.leader ?? "";
+
+  const [allHackCards, memberSnaps] = await Promise.all([
+    getHackCardsByUserId(memberIds),
+    Promise.all(memberIds.map((id) => db.collection(USERS).doc(id).get())),
+  ]);
+
+  const members = memberIds.map((memberId, j) => {
+    const userSnap = memberSnaps[j];
+    const memberUserData = userSnap.exists ? (userSnap.data() as MatchUserDoc) : null;
+    const memberHackCard = allHackCards.get(memberId) ?? null;
+    const discordUsername = resolveDiscordUsername(memberHackCard);
+    const {firstName, lastName} = resolveUserName(memberUserData ?? {});
+    return {
+      id: memberId,
+      firstName,
+      lastName,
+      isLeader: memberId === leaderId,
+      discord_uid: memberUserData?.discord_uid ?? "",
+      discord_username: discordUsername,
+      ...mapHackCardProfile(memberHackCard),
+    };
+  });
+
+  return {
+    teamId,
+    teamName: teamData.name ?? "",
+    memberCount: memberIds.length,
+    availableSlots: MAX_TEAM_SIZE - memberIds.length,
+    role: teamCard.role ?? "",
+    skills: Array.isArray(teamCard.skills) ? teamCard.skills : [],
+    shortBio: teamCard.short_bio ?? "",
+    projectInterest: teamCard.project_interest ?? "",
+    members,
+  };
 };
 
 const getMatchConfig = async (): Promise<MatchConfig | null> => {
@@ -1303,6 +1354,34 @@ export const getMatchById = async (
       return res.status(403).json({ error: "Forbidden" });
     }
 
+    const matchType = matchData.type ?? "individual";
+    const baseResponse = {
+      id: matchSnapshot.id,
+      type: matchType,
+      teamId: matchData.teamId ?? null,
+      createdAt: matchData.createdAt,
+      discordChannelUrl: matchData.discordChannelUrl ?? null,
+    };
+
+    if (matchType === "team") {
+      const teamId = matchData.teamId;
+      if (!teamId) {
+        return res.status(404).json({ error: "Team not found for this match" });
+      }
+
+      const team = await buildTeamDeckCard(teamId);
+      if (!team) {
+        return res.status(404).json({ error: "Team not found" });
+      }
+
+      return res.status(200).json({
+        data: {
+          ...baseResponse,
+          team,
+        },
+      });
+    }
+
     const otherUserId = matchData.users.find((userId) => userId !== uid);
     if (!otherUserId) {
       return res.status(404).json({ error: "Matched user not found" });
@@ -1320,26 +1399,11 @@ export const getMatchById = async (
     const otherHackCardData = otherHackCardSnapshot.exists
       ? (otherHackCardSnapshot.data() as HackCardDoc)
       : null;
-
-    // Discord username comes from the matched user's own hack_cards doc.
     const discordUsername = resolveDiscordUsername(otherHackCardData);
-
-    console.log({
-      id: matchSnapshot.id,
-      type: matchData.type ?? "individual",
-      teamId: matchData.teamId ?? null,
-      createdAt: matchData.createdAt,
-      discordChannelUrl: matchData.discordChannelUrl ?? null,
-      user: buildMatchDeckCard(otherUserId, otherUserData, otherHackCardData, discordUsername),
-    })
 
     return res.status(200).json({
       data: {
-        id: matchSnapshot.id,
-        type: matchData.type ?? "individual",
-        teamId: matchData.teamId ?? null,
-        createdAt: matchData.createdAt,
-        discordChannelUrl: matchData.discordChannelUrl ?? null,
+        ...baseResponse,
         user: buildMatchDeckCard(otherUserId, otherUserData, otherHackCardData, discordUsername),
       },
     });
