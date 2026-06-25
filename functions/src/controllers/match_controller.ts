@@ -1621,17 +1621,35 @@ export const getTeamDeck = async (
       eligibleTeamCards.map((doc) => db.collection(TEAMS).doc(doc.id).get())
     );
 
-    // Filter out full teams early, carry metadata forward
+    // Fetch each team's leader doc so we can gate on match_enabled/mentor/admin,
+    // same as we do for individual candidates in getDeck.
+    const leaderIds = eligibleTeamCards.map((doc, i) => {
+      const teamData = teamSnaps[i].exists ? (teamSnaps[i].data() as TeamDoc) : null;
+      return teamData?.leader ?? "";
+    });
+    const leaderSnaps = await Promise.all(
+      leaderIds.map((leaderId) =>
+        leaderId ? db.collection(USERS).doc(leaderId).get() : Promise.resolve(null)
+      )
+    );
+
+    // Filter out full teams AND teams whose leader hasn't opted in
+    // (or is a mentor/admin) — mirrors isUserMatchCandidate gating in getDeck.
     const validTeams = eligibleTeamCards
       .map((doc, i) => {
         const teamData = teamSnaps[i].exists ? (teamSnaps[i].data() as TeamDoc) : null;
         const memberIds = Array.isArray(teamData?.members) ? teamData!.members! : [];
-        return {doc, teamData, memberIds};
+        const leaderSnap = leaderSnaps[i];
+        const leaderData = leaderSnap?.exists ? (leaderSnap.data() as MatchUserDoc) : null;
+        return {doc, teamData, memberIds, leaderData};
       })
-      .filter(({memberIds}) => memberIds.length < MAX_TEAM_SIZE);
+      .filter(({memberIds, leaderData}) =>
+        memberIds.length < MAX_TEAM_SIZE &&
+                leaderData !== null &&
+                isUserMatchCandidate(leaderData)
+      );
 
     // Phase 2: fetch all member user docs + hack cards in parallel across all teams
-    // Deduplicate member IDs so overlapping members aren't fetched twice
     const allMemberIds = [...new Set(validTeams.flatMap((t) => t.memberIds))];
 
     const [allHackCards, teamMemberSnaps] = await Promise.all([
@@ -1678,8 +1696,6 @@ export const getTeamDeck = async (
         members,
       };
     });
-
-
 
     return res.status(200).json({data: teamCards});
   } catch (error) {
