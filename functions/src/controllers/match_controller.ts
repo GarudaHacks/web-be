@@ -1314,9 +1314,7 @@ export const getMatches = async (
       return res.status(404).json({error: "User not found"});
     }
 
-    if (!isUserOptedIn(userData)) {
-      return res.status(403).json({error: "You must opt in first"});
-    }
+
 
     const matchesSnapshot = await db
       .collection(MATCHES)
