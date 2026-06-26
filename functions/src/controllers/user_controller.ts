@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { auth, db } from "../config/firebase";
+import { signCheckIn } from "../utils/checkin_signature";
 
 /**
  * Fetch all users
@@ -91,11 +92,18 @@ export const getBoardingPassInfo = async (
     const applicationData = applicationSnap.data()
     const userSnap = await db.collection("users").doc(req.user!.uid).get()
     const userData = userSnap.data()
+
+    const firstName = userData?.firstName ?? ""
+    const lastName = userData?.lastName ?? ""
+    const confirmedRsvpAt = userData?.confirmedRsvpAt.toDate().toISOString()
+
     res.status(200).json({
-      firstName: userData?.firstName,
-      lastName: userData?.lastName,
+      firstName,
+      lastName,
       acceptedAt: userData?.acceptedAt.toDate().toISOString(),
-      confirmedRsvpAt: userData?.confirmedRsvpAt.toDate().toISOString(),
+      confirmedRsvpAt,
+      // Sign over the SAME confirmedRsvpAt for checkin QR scanner
+      qrSignature: signCheckIn(req.user!.uid, firstName, lastName, confirmedRsvpAt),
       teamFormation: `${getTeamFormationFromUser(applicationData?.teamFormation)}`,
       teamName: applicationData?.teamName,
       dateOfBirth: userData?.dateOfBirth
