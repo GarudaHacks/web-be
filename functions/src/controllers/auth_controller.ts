@@ -731,15 +731,15 @@ export const authDiscord = async (
     try {
       // check if user exist
       const existingUser = await auth.getUserByEmail(email)
-      functions.logger.info("authDiscord: existing user found", {
-        uid: existingUser.uid,
-        emailVerified: existingUser.emailVerified,
-        discordVerified: verified,
-      });
-      // upgrade emailVerified if Discord reports the email as verified
-      if (verified && !existingUser.emailVerified) {
-        await auth.updateUser(existingUser.uid, { emailVerified: true })
-        functions.logger.info("authDiscord: upgraded emailVerified to true", { uid: existingUser.uid });
+      // if the email already belongs to a different (non-discord) account
+      // (e.g. Google or email/password), block the discord sign-in to avoid
+      // forking a separate discord:<id> identity for the same person.
+      if (existingUser.uid !== uid) {
+        res.status(409).json({
+          status: 409,
+          error: "This email is already registered with another sign-in method. Please log in with that method instead.",
+        });
+        return;
       }
     } catch (error: any) {
       const err = error as FirebaseError
@@ -816,17 +816,17 @@ export const authDiscord = async (
       sameSite: "strict",
     });
 
-    const [userDoc, discordUser] = await Promise.all([
+    const [userDoc, signedInUser] = await Promise.all([
       db.collection("users").doc(uid).get(),
       auth.getUser(uid),
     ]);
     const authResponse: AuthResponse = {
       uid,
-      email,
-      displayName: globalName,
-      emailVerified: verified,
+      email: signedInUser.email ?? email,
+      displayName: signedInUser.displayName ?? globalName,
+      emailVerified: signedInUser.emailVerified,
       status: userDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
-      role: deriveRole(discordUser.customClaims),
+      role: deriveRole(signedInUser.customClaims),
       discord_uid: userDoc.data()?.discord_uid,
     };
     res.status(200).json(
