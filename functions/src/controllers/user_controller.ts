@@ -83,6 +83,9 @@ function getTeamFormationFromUser(teamFormation: string) {
   else if (teamFormation === "No, I will be joining Garuda Hacks solo") return "Solo"
   else return "Speed Dating"
 }
+/**
+ * Get a better string representation of nationality.
+ */
 function getNationality(nationality: string) {
   return nationality.includes("Indonesia") ? "Indonesian" : "International"
 }
