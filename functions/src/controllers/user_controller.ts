@@ -83,6 +83,9 @@ function getTeamFormationFromUser(teamFormation: string) {
   else if (teamFormation === "No, I will be joining Garuda Hacks solo") return "Solo"
   else return "Speed Dating"
 }
+function getNationality(nationality: string) {
+  return nationality.includes("Indonesia") ? "Indonesian" : "International"
+}
 export const getBoardingPassInfo = async (
   req: Request,
   res: Response
@@ -109,7 +112,7 @@ export const getBoardingPassInfo = async (
       dateOfBirth: userData?.dateOfBirth
         ? new Date(userData.dateOfBirth).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
         : undefined,
-      nationality: userData?.nationality,
+      nationality: getNationality(userData?.nationality),
       gender: userData?.genderIdentity,
       affiliation: userData?.occupationPlace,
       email: userData?.email,
