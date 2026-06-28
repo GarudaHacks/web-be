@@ -835,6 +835,72 @@ export const authDiscord = async (
   }
 }
 
+
+export const authDiscordMobile = async (req: Request, res: Response): Promise<void> => {
+  try {
+    const { code } = req.body;
+    if (!code) {
+      res.status(400).json({ error: "Missing 'code' in request body" });
+      return;
+    }
+
+    // 1. Exchange code for Discord access token (client_secret lives here, server-side only)
+    const tokenRes = await axios.post(
+      "https://discord.com/api/oauth2/token",
+      new URLSearchParams({
+        client_id: process.env.DISCORD_CLIENT_ID!,
+        client_secret: process.env.DISCORD_CLIENT_SECRET!,
+        grant_type: "authorization_code",
+        code,
+        redirect_uri: process.env.DISCORD_REDIRECT_URI!
+      }),
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+    );
+    const accessToken = tokenRes.data.access_token;
+
+    // 2. Get Discord profile
+    const profileRes = await axios.get("https://discord.com/api/users/@me", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    const { id, email, username, avatar,global_name: globalName } = profileRes.data;
+    const uid = `discord:${id}`;
+    const displayName = globalName ?? username;
+    const avatarUrl = avatar
+      ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png`
+      : null;
+
+    // 3. Create the Firebase user if it doesn't exist yet
+    try {
+      await auth.getUser(uid);
+    } catch {
+      await auth.createUser({
+        uid,
+        displayName,
+        email: email ?? undefined,
+        photoURL: avatarUrl ?? undefined,
+      });
+      await db.collection("users").doc(uid).set({
+        userId: uid,
+        email: email ?? null,
+        displayName: displayName ?? "",
+        discord_uid: id,
+        provider: "Discord",
+        status: "not applicable",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+    }
+
+    // 4. Mint a Firebase custom token for the mobile app to sign in with
+    const customToken = await auth.createCustomToken(uid);
+
+    res.status(200).json({ customToken, uid, email, displayName, avatarUrl });
+  } catch (error: any) {
+    console.error(error);
+    res.status(500).json({ error: error?.response?.data ?? error.message });
+  }
+};
+
 // interface providerUser {
 //   id: string
 //   email: string
