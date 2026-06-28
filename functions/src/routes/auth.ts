@@ -1,14 +1,14 @@
 import express, { Request, Response } from "express";
 import {
-    getCurrentUserRole,
-    login,
-    logout,
-    register,
-    requestPasswordReset,
-    sessionCheck,
-    sessionLogin,
-    verifyAccount,
-    authDiscord, authDiscordMobile
+  getCurrentUserRole,
+  login,
+  logout,
+  register,
+  requestPasswordReset,
+  sessionCheck,
+  sessionLogin,
+  verifyAccount,
+  authDiscord, authDiscordMobile
 } from "../controllers/auth_controller";
 
 const router = express.Router();
