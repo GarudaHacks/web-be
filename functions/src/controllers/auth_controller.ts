@@ -691,6 +691,7 @@ export const authDiscord = async (
     })
 
     const { id, avatarId, email, verified, global_name: globalName } = userResponse.data
+    functions.logger.info("authDiscord: discord profile", { intent, id, email, verified });
     const uid = `discord:${id}`
     const avatarUrl = `https://cdn.discordapp.com/avatars/${uid}/${avatarId}.png`
     const userEmail = `${email}`
@@ -730,9 +731,15 @@ export const authDiscord = async (
     try {
       // check if user exist
       const existingUser = await auth.getUserByEmail(email)
+      functions.logger.info("authDiscord: existing user found", {
+        uid: existingUser.uid,
+        emailVerified: existingUser.emailVerified,
+        discordVerified: verified,
+      });
       // upgrade emailVerified if Discord reports the email as verified
       if (verified && !existingUser.emailVerified) {
         await auth.updateUser(existingUser.uid, { emailVerified: true })
+        functions.logger.info("authDiscord: upgraded emailVerified to true", { uid: existingUser.uid });
       }
     } catch (error: any) {
       const err = error as FirebaseError
