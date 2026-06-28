@@ -83,9 +83,6 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         secure: process.env.NODE_ENV === "production",
       });
 
-      // revoke refresh token
-      await auth.revokeRefreshTokens(user.uid);
-
       const csrfToken = generateCsrfToken();
       // http only cookie
       res.cookie("CSRF-TOKEN", csrfToken, {
