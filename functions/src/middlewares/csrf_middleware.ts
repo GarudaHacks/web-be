@@ -9,7 +9,9 @@ const csrfExemptRoutes = [
   "/auth/reset-password",
   "/auth/logout",
   "/auth/verify-account",
-  "/auth/discord/callback"
+  "/auth/discord/callback",
+  "/auth/discord-mobile-process/callback",
+  "/auth/discord-mobile/callback"
 ];
 
 export const csrfProtection: RequestHandler = (

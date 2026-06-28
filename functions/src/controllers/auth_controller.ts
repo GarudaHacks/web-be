@@ -863,7 +863,7 @@ export const authDiscordMobile = async (req: Request, res: Response): Promise<vo
         client_secret: process.env.DISCORD_CLIENT_SECRET!,
         grant_type: "authorization_code",
         code,
-        redirect_uri: process.env.DISCORD_REDIRECT_URI!
+        redirect_uri: process.env.DISCORD_REDIRECT_MOBILE_URI!,
       }),
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
     );
@@ -910,6 +910,20 @@ export const authDiscordMobile = async (req: Request, res: Response): Promise<vo
     console.error(error);
     res.status(500).json({ error: error?.response?.data ?? error.message });
   }
+};
+
+export const authDiscordMobileCallback = async (req: Request, res: Response): Promise<void> => {
+  const { code, error } = req.query;
+
+  if (error) {
+    return res.redirect(`garudahacks://discord-callback?error=${error}`);
+  }
+
+  if (!code) {
+    return res.redirect(`garudahacks://discord-callback?error=missing_code`);
+  }
+
+  res.redirect(`garudahacks://discord-callback?code=${code}`);
 };
 
 // interface providerUser {

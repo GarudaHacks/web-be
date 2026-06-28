@@ -19,6 +19,8 @@ const authExemptRoutes = [
   "/auth/session-login",
   "/auth/reset-password",
   "/auth/discord/callback",
+  "/auth/discord-mobile-process/callback",
+  "/auth/discord-mobile/callback"
 ];
 /**
  * Middleware that validates Firebase Session Cookie passed as __session cookie.
