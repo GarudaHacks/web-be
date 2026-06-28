@@ -729,7 +729,11 @@ export const authDiscord = async (
 
     try {
       // check if user exist
-      await auth.getUserByEmail(email)
+      const existingUser = await auth.getUserByEmail(email)
+      // upgrade emailVerified if Discord reports the email as verified
+      if (verified && !existingUser.emailVerified) {
+        await auth.updateUser(existingUser.uid, { emailVerified: true })
+      }
     } catch (error: any) {
       const err = error as FirebaseError
       if (err.code === "auth/user-not-found" && intent === "signup") { // if not found -> new user. init a record
