@@ -843,16 +843,21 @@ export const authDiscord = async (
   }
 }
 
-export const authDiscordMobile = async (req: Request, res: Response): Promise<void> => {
+export const authDiscordMobile = async (
+  req: Request,
+  res: Response,
+): Promise<void> => {
   try {
     const { code } = req.body;
 
     if (!code) {
-      res.status(400).json({ error: "Missing 'code' in request body" });
+      res.status(400).json({
+        error: "Missing 'code' in request body",
+      });
       return;
     }
 
-    // 1. Exchange code for Discord access token
+    // Exchange authorization code
     const tokenRes = await axios.post(
       "https://discord.com/api/oauth2/token",
       new URLSearchParams({
@@ -862,13 +867,22 @@ export const authDiscordMobile = async (req: Request, res: Response): Promise<vo
         code,
         redirect_uri: process.env.DISCORD_REDIRECT_MOBILE_URI!,
       }),
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      {
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      }
     );
 
-    // 2. Get Discord profile
-    const profileRes = await axios.get("https://discord.com/api/users/@me", {
-      headers: { Authorization: `Bearer ${tokenRes.data.access_token}` },
-    });
+    // Discord profile
+    const profileRes = await axios.get(
+      "https://discord.com/api/users/@me",
+      {
+        headers: {
+          Authorization: `Bearer ${tokenRes.data.access_token}`,
+        },
+      }
+    );
 
     const {
       id,
@@ -876,7 +890,7 @@ export const authDiscordMobile = async (req: Request, res: Response): Promise<vo
       username,
       avatar,
       verified,
-      global_name: globalName,
+      global_name: globalName ,
     } = profileRes.data;
 
     const uid = `discord:${id}`;
@@ -884,86 +898,87 @@ export const authDiscordMobile = async (req: Request, res: Response): Promise<vo
     const avatarUrl = avatar
       ? `https://cdn.discordapp.com/avatars/${id}/${avatar}.png`
       : undefined;
-    const userEmail = `${email}`
+
+    let firebaseUser;
 
     try {
-      // check if user exist
-      const existingUser = await auth.getUserByEmail(email)
-      // if the email already belongs to a different (non-discord) account
-      // (e.g. Google or email/password), block the discord sign-in to avoid
-      // forking a separate discord:<id> identity for the same person.
-      if (existingUser.uid !== uid) {
+      firebaseUser = await auth.getUserByEmail(email);
+
+      if (firebaseUser.uid !== uid) {
         res.status(409).json({
           status: 409,
-          error: "This email is already registered with another sign-in method.",
+          error:
+                        "This email is already registered with another sign-in method.",
         });
         return;
       }
     } catch (error: any) {
-      const err = error as FirebaseError
-      if (err.code === "auth/user-not-found") { // if not found -> new user. init a record
-        // create auth user first so Firestore doc isn't orphaned on failure
-        const user = await auth.createUser({
-          "uid": uid,
-          "displayName": globalName,
-          "email": email,
-          "emailVerified": verified,
-          "photoURL": avatarUrl,
-        });
-        await auth.setCustomUserClaims(user.uid, {
-          role: "User",
-        });
-        const userData: User = {
-          userId: uid,
-          email: userEmail,
-          displayName: globalName ?? "",
-          status: APPLICATION_STATUS.NOT_APPLICABLE,
-          discord_uid: id,
-        };
-        await db.collection("users").doc(uid).set({
-          ...userData,
-          provider: "Discord",
-          createdAt: FieldValue.serverTimestamp(),
-          updatedAt: FieldValue.serverTimestamp(),
-        });
-      }else {
-        throw err
+      const err = error as FirebaseError;
+
+      if (err.code !== "auth/user-not-found") {
+        throw err;
       }
+
+      firebaseUser = await auth.createUser({
+        uid,
+        email,
+        displayName,
+        emailVerified: verified,
+        photoURL: avatarUrl,
+      });
+
+      await auth.setCustomUserClaims(uid, {
+        role: "User",
+      });
+
+      await db.collection("users").doc(uid).set({
+        userId: uid,
+        email,
+        displayName,
+        status: APPLICATION_STATUS.NOT_APPLICABLE,
+        discord_uid: id,
+        provider: "Discord",
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
     }
 
-
-
-
-    const [customToken, freshUserDoc,signedInUser] = await Promise.all([
-      auth.createCustomToken(uid, { role: "User", provider: "Discord" }),
+    const [customToken, userDoc] = await Promise.all([
+      auth.createCustomToken(uid, {
+        role: "User",
+        provider: "Discord",
+      }),
       db.collection("users").doc(uid).get(),
-      auth.getUser(uid),
     ]);
 
-    const authResponse: AuthResponse = {
-      uid,
-      email: signedInUser.email ?? userEmail,
-      displayName: signedInUser.displayName ?? displayName,
-      emailVerified: signedInUser.emailVerified,
-      status: freshUserDoc.data()?.status ?? APPLICATION_STATUS.NOT_APPLICABLE,
-      role: deriveRole(signedInUser.customClaims),
-      discord_uid: freshUserDoc.data()?.discord_uid,
-    };
-
-    res.status(200).json({ customToken, user: authResponse });
-
+    res.status(200).json({
+      customToken,
+      user: {
+        uid,
+        email: firebaseUser.email,
+        displayName: firebaseUser.displayName ?? displayName,
+        emailVerified: firebaseUser.emailVerified,
+        status:
+                    userDoc.data()?.status ??
+                    APPLICATION_STATUS.NOT_APPLICABLE,
+        role: "User",
+        discord_uid: userDoc.data()?.discord_uid,
+      },
+    });
   } catch (error: any) {
     console.error("authDiscordMobile error:", error);
+
     if (axios.isAxiosError(error)) {
       res.status(error.response?.status ?? 500).json({
         error: error.response?.data ?? error.message,
       });
     } else {
-      res.status(500).json({ error: error.message });
+      res.status(500).json({
+        error: error.message,
+      });
     }
   }
 };
-
 export const authDiscordMobileCallback = async (req: Request, res: Response): Promise<void> => {
   const { code, error } = req.query;
 
