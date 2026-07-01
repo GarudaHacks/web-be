@@ -89,6 +89,31 @@ function getTeamFormationFromUser(teamFormation: string) {
 function getNationality(nationality: string) {
   return nationality.includes("Indonesia") ? "Indonesian" : "International"
 }
+/**
+ * Formats a stored date of birth as dd/mm/yyyy.
+ *
+ * Historical data is inconsistent: the applicant's browser saved the birthday
+ * as `localMidnight.toISOString()`, so the stored instant is offset from the
+ * intended calendar date by whatever timezone that browser was in (e.g. a
+ * UTC+8 user's "6 Dec 2003" is stored as 2003-12-05T16:00:00.000Z). No single
+ * fixed timezone can correct every row. Because every value represents local
+ * midnight, the intended calendar date is always the UTC day nearest to the
+ * stored instant — adding 12h and reading the date in UTC recovers it for any
+ * offset within ±12h. Newer plain "yyyy-MM-dd" values parse to UTC midnight and
+ * are unaffected by the shift.
+ */
+function formatDateOfBirth(dateOfBirth?: string): string | undefined {
+  if (!dateOfBirth) return undefined
+  const shifted = new Date(new Date(dateOfBirth).getTime() + 12 * 60 * 60 * 1000)
+  if (isNaN(shifted.getTime())) return undefined
+  return shifted.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "UTC",
+  })
+}
+
 export const getBoardingPassInfo = async (
   req: Request,
   res: Response
@@ -112,9 +137,7 @@ export const getBoardingPassInfo = async (
       qrSignature: signCheckIn(req.user!.uid, firstName, lastName, confirmedRsvpAt),
       teamFormation: `${getTeamFormationFromUser(applicationData?.teamFormation)}`,
       teamName: applicationData?.teamName,
-      dateOfBirth: userData?.dateOfBirth
-        ? new Date(userData.dateOfBirth).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Jakarta" })
-        : undefined,
+      dateOfBirth: formatDateOfBirth(userData?.dateOfBirth),
       nationality: getNationality(userData?.nationality),
       gender: userData?.genderIdentity,
       affiliation: userData?.occupationPlace,
