@@ -283,13 +283,15 @@ const getUidFromRequest = (req: Request): string | null => {
 
 
 const isUserEligibleForOptIn = (userData: MatchUserDoc): boolean => {
+  const shouldCheckConfirmedRsvp = new Date() >= new Date('2026-07-04T00:00:00+07:00');
+
   return (
-    userData.status === APPLICATION_STATUS.CONFIRMED_RSVP &&
+    (!shouldCheckConfirmedRsvp ||
+            userData.status === APPLICATION_STATUS.CONFIRMED_RSVP) &&
         userData.mentor !== true &&
         userData.admin !== true
   );
 };
-
 const isMatchOpen = async (): Promise<boolean> => {
   const config = await getMatchConfig();
   if (!config) {
@@ -711,7 +713,8 @@ export const getMatchStatus = async (
       data: {
         optedIn: isUserOptedIn(userData),
         eligible: isUserEligibleForOptIn(userData),
-        isDiscordConnected: !(userData.discord_uid == null || userData.discord_uid === ""),
+        isDiscordConnected: true,
+        // isDiscordConnected: !(userData.discord_uid == null || userData.discord_uid === ""),
         inTeam,
         isLeader,
         teamFull,
@@ -1430,6 +1433,8 @@ export const getMatchById = async (
     //   });
     // }
 
+
+
     if (matchType === "team") {
       const teamId = matchData.teamId;
       if (!teamId) {
@@ -1437,7 +1442,13 @@ export const getMatchById = async (
       }
 
       const teamSnap = await db.collection(TEAMS).doc(teamId).get();
+      functions.logger.info({
+        exists: teamSnap.exists,
+        data: teamSnap.data(),
+      });
       const teamData = teamSnap.exists ? (teamSnap.data() as TeamDoc) : null;
+
+
       const requesterIsInTeam =
               Array.isArray(teamData?.members) && teamData!.members!.includes(uid);
 
@@ -1468,6 +1479,12 @@ export const getMatchById = async (
           },
         });
       }
+
+      functions.logger.info({
+        matchId: id,
+        teamId,
+        uid,
+      });
 
       const team = await buildTeamDeckCard(teamId);
       if (!team) {
