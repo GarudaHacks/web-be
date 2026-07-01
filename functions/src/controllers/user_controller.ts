@@ -113,7 +113,7 @@ export const getBoardingPassInfo = async (
       teamFormation: `${getTeamFormationFromUser(applicationData?.teamFormation)}`,
       teamName: applicationData?.teamName,
       dateOfBirth: userData?.dateOfBirth
-        ? new Date(userData.dateOfBirth).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" })
+        ? new Date(userData.dateOfBirth).toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Jakarta" })
         : undefined,
       nationality: getNationality(userData?.nationality),
       gender: userData?.genderIdentity,
