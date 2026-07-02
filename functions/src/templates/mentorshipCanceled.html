@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+</head>
+
+<body style="font-family: 'Poppins', Arial, sans-serif; background:#f4f4f4; padding:20px;">
+  <table width="100%" cellpadding="0" cellspacing="0"
+    style="max-width:600px;margin:auto;background:#fff;border-radius:8px;overflow:hidden;">
+    <tr>
+      <td style="padding:24px;color:#333; text-align: center;">
+        <h1>Mentorship Booking Canceled</h1>
+        <p>Hi ${mentorName},</p>
+        <p style="color:#ff4000;">The booking for team <strong>${teamName}</strong> has been canceled.</p>
+        <table width="100%" cellpadding="8" cellspacing="0"
+          style="margin:24px 0;border:1px solid #e0e0e0;border-radius:6px;text-align:left;font-size:14px;">
+          <tr>
+            <td style="color:#909090;">Team</td>
+            <td>${teamName}</td>
+          </tr>
+          <tr>
+            <td style="color:#909090;">Hacker</td>
+            <td>${hackerName}</td>
+          </tr>
+          <tr>
+            <td style="color:#909090;">Duration</td>
+            <td>${duration} minutes</td>
+          </tr>
+          <tr>
+            <td style="color:#909090;">Time (WIB)</td>
+            <td>${scheduleWib}</td>
+          </tr>
+          <tr>
+            <td style="color:#909090;">Time (UTC)</td>
+            <td>${scheduleUtc}</td>
+          </tr>
+          <tr>
+            <td style="color:#909090;">Time (${pacificLabel})</td>
+            <td>${schedulePacific}</td>
+          </tr>
+        </table>
+        <p style="text-align:center;margin:32px 0;">
+          <a href="${portalLink}"
+            style="background:#5079ff;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;">
+            View In Portal
+          </a>
+        </p>
+        <p style="font-size: 12px;">Cancelation is permissible up to 45 minutes before the scheduled time.</p>
+        <hr style="border-color: #f9f5ff;">
+        <div style="color: #909090; font-size: 10px;">
+          <p>© 2026 Garuda Hacks. All rights reserved.</p>
+          <p>Visit our <a href="https://garudahacks.com">website</a> or Contact <a href="mailto:heryan@garudahacks.com">support</a></p>
+        </div>
+      </td>
+    </tr>
+  </table>
+</body>
+
+</html>
