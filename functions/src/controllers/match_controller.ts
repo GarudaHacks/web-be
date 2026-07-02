@@ -283,11 +283,10 @@ const getUidFromRequest = (req: Request): string | null => {
 
 
 const isUserEligibleForOptIn = (userData: MatchUserDoc): boolean => {
-  const shouldCheckConfirmedRsvp = new Date() >= new Date('2026-07-04T00:00:00+07:00');
+
 
   return (
-    (!shouldCheckConfirmedRsvp ||
-            userData.status === APPLICATION_STATUS.CONFIRMED_RSVP) &&
+        userData.status === APPLICATION_STATUS.CONFIRMED_RSVP &&
         userData.mentor !== true &&
         userData.admin !== true
   );
@@ -713,8 +712,7 @@ export const getMatchStatus = async (
       data: {
         optedIn: isUserOptedIn(userData),
         eligible: isUserEligibleForOptIn(userData),
-        isDiscordConnected: true,
-        // isDiscordConnected: !(userData.discord_uid == null || userData.discord_uid === ""),
+        isDiscordConnected: !(userData.discord_uid == null || userData.discord_uid === ""),
         inTeam,
         isLeader,
         teamFull,
