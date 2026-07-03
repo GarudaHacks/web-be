@@ -5,6 +5,8 @@ import { welcomeEmail } from "../templates/welcomeEmail";
 import { applicationSubmitted } from "../templates/applicationSubmitted";
 import { mentorshipBooked, MentorshipEmailProps } from "../templates/mentorshipBooked";
 import { mentorshipCanceled } from "../templates/mentorshipCanceled";
+import { mentorshipBookedHacker, HackerMentorshipEmailProps } from "../templates/mentorshipBookedHacker";
+import { mentorshipCanceledHacker } from "../templates/mentorshipCanceledHacker";
 import * as functions from "firebase-functions";
 
 
@@ -66,4 +68,28 @@ export async function sendMentorshipCanceledEmail(to: string, props: MentorshipE
     html,
   });
   functions.logger.info('Mentorship canceled email sent:', info.messageId);
+}
+
+export async function sendMentorshipBookedEmailHacker(to: string, props: HackerMentorshipEmailProps) {
+  functions.logger.debug(`Sending mentorship booked confirmation email to ${to}`)
+  const html = mentorshipBookedHacker(props);
+  const info = await transporter.sendMail({
+    from: process.env.SES_FROM_EMAIL,
+    to,
+    subject: `Your Mentorship Session With ${props.mentorName} Is Confirmed`,
+    html,
+  });
+  functions.logger.info('Mentorship booked confirmation email sent:', info.messageId);
+}
+
+export async function sendMentorshipCanceledEmailHacker(to: string, props: HackerMentorshipEmailProps) {
+  functions.logger.debug(`Sending mentorship canceled confirmation email to ${to}`)
+  const html = mentorshipCanceledHacker(props);
+  const info = await transporter.sendMail({
+    from: process.env.SES_FROM_EMAIL,
+    to,
+    subject: `Your Mentorship Session With ${props.mentorName} Was Canceled`,
+    html,
+  });
+  functions.logger.info('Mentorship canceled confirmation email sent:', info.messageId);
 }

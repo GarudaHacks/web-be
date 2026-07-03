@@ -6,7 +6,7 @@ import { CollectionReference, DocumentData, FieldPath, FieldValue } from "fireba
 import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
 import { epochRangeToScheduleDisplay } from "../utils/date";
-import { sendMentorshipBookedEmail, sendMentorshipCanceledEmail } from "../utils/email_sender";
+import { sendMentorshipBookedEmail, sendMentorshipCanceledEmail, sendMentorshipBookedEmailHacker, sendMentorshipCanceledEmailHacker } from "../utils/email_sender";
 
 
 const CONFIG = "config";
@@ -458,6 +458,9 @@ export const hackerBookMentorships = async (
       }
     });
 
+    const hackerSnap = await db.collection(USERS).doc(uid).get()
+    const hackerData = hackerSnap.data()
+
     for (const mentorship of mentorships) {
       try {
         const mentorshipSnap = await db.collection(MENTORSHIPS).doc(mentorship.id).get()
@@ -482,6 +485,7 @@ export const hackerBookMentorships = async (
         const mentorData = mentorSnap.data() as FirestoreMentor
 
         const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
+        const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
         await sendMentorshipBookedEmail(mentorData.email, {
           mentorName: mentorData.name,
           teamName: mentorship.teamName,
@@ -490,10 +494,26 @@ export const hackerBookMentorships = async (
           scheduleUtc: schedule.utc,
           schedulePacific: schedule.pacific,
           pacificLabel: schedule.pacificLabel,
-          duration: (mentorshipData.endTime - mentorshipData.startTime) / 60,
+          duration,
           portalLink: PORTAL_LINK,
         })
         functions.logger.info(`Email sent successfully for mentor ${mentorData.email}:`)
+
+        if (hackerData?.email) {
+          await sendMentorshipBookedEmailHacker(hackerData.email, {
+            mentorName: mentorData.name,
+            teamName: mentorship.teamName,
+            hackerName: mentorship.hackerName,
+            location: mentorship.offlineLocation || mentorshipData.location,
+            scheduleWib: schedule.wib,
+            scheduleUtc: schedule.utc,
+            schedulePacific: schedule.pacific,
+            pacificLabel: schedule.pacificLabel,
+            duration,
+            portalLink: PORTAL_LINK,
+          })
+          functions.logger.info(`Confirmation email sent successfully for hacker ${hackerData.email}:`)
+        }
       } catch (error) {
         functions.logger.error(`Error when trying to send email for mentorship ${mentorship.id}: ${(error as Error).message}`)
       }
@@ -550,13 +570,18 @@ export const hackerCancelMentorship = async (
     }
 
 
-    // get mentor data
-    const mentorSnapshot = await db.collection(USERS).doc(mentorshipData.mentorId).get()
+    // get mentor and hacker data
+    const [mentorSnapshot, hackerSnapshot] = await Promise.all([
+      db.collection(USERS).doc(mentorshipData.mentorId).get(),
+      db.collection(USERS).doc(uid).get(),
+    ])
     const mentorData = mentorSnapshot.data()
+    const hackerData = hackerSnapshot.data()
 
     if (mentorData && mentorshipData.teamName && mentorshipData.hackerName) {
       // sendEmail
       const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
+      const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
       await sendMentorshipCanceledEmail(mentorData.email, {
         mentorName: mentorData.name,
         teamName: mentorshipData.teamName,
@@ -565,9 +590,24 @@ export const hackerCancelMentorship = async (
         scheduleUtc: schedule.utc,
         schedulePacific: schedule.pacific,
         pacificLabel: schedule.pacificLabel,
-        duration: (mentorshipData.endTime - mentorshipData.startTime) / 60,
+        duration,
         portalLink: PORTAL_LINK,
       })
+
+      if (hackerData?.email) {
+        await sendMentorshipCanceledEmailHacker(hackerData.email, {
+          mentorName: mentorData.name,
+          teamName: mentorshipData.teamName,
+          hackerName: mentorshipData.hackerName,
+          location: mentorshipData.offlineLocation || mentorshipData.location,
+          scheduleWib: schedule.wib,
+          scheduleUtc: schedule.utc,
+          schedulePacific: schedule.pacific,
+          pacificLabel: schedule.pacificLabel,
+          duration,
+          portalLink: PORTAL_LINK,
+        })
+      }
     }
 
     await db.collection(MENTORSHIPS).doc(id).update({
