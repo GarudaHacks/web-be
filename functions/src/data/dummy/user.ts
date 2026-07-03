@@ -5,7 +5,7 @@ export const dummyMentors: FirestoreMentor[] = [
     "id": "-OVQFbrn-Ct6u6SSB47I",
     mentor: true,
     "email": "dummy@mentor.com",
-    "name": "Lorem Ipsum",
+    "displayName": "Lorem Ipsum",
     "specialization": "backend,frontend",
     "discordUsername": "lole",
     "intro": "Hello fwens"
@@ -14,7 +14,7 @@ export const dummyMentors: FirestoreMentor[] = [
     "id": "-OVQFrFPecnWerr4SwXn",
     mentor: true,
     "email": "dummy2@mentor.com",
-    "name": "John Pork",
+    "displayName": "John Pork",
     "specialization": "product manager,designer",
     "discordUsername": "hehei",
     "intro": "Hi guuyss"

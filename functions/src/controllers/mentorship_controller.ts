@@ -489,7 +489,7 @@ export const hackerBookMentorships = async (
         if (mentorshipData.location === "online") {
           const attendeeEmails = [mentorData.email, hackerData?.email].filter((e): e is string => !!e)
           const meetEvent = await createMentorshipMeetEvent({
-            summary: `Garuda Hacks Mentorship: ${mentorship.teamName} x ${mentorData.name}`,
+            summary: `Garuda Hacks Mentorship: ${mentorship.teamName} x ${mentorData.displayName}`,
             description: mentorship.hackerDescription,
             startEpochSeconds: mentorshipData.startTime,
             endEpochSeconds: mentorshipData.endTime,
@@ -507,7 +507,7 @@ export const hackerBookMentorships = async (
         const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
         const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
         await sendMentorshipBookedEmail(mentorData.email, {
-          mentorName: mentorData.name,
+          mentorName: mentorData.displayName,
           teamName: mentorship.teamName,
           hackerName: mentorship.hackerName,
           scheduleWib: schedule.wib,
@@ -522,7 +522,7 @@ export const hackerBookMentorships = async (
 
         if (hackerData?.email) {
           await sendMentorshipBookedEmailHacker(hackerData.email, {
-            mentorName: mentorData.name,
+            mentorName: mentorData.displayName,
             teamName: mentorship.teamName,
             hackerName: mentorship.hackerName,
             location: mentorship.offlineLocation || mentorshipData.location,
@@ -687,8 +687,38 @@ export const hackerGetMyMentorships = async (
       ...doc.data(),
     })) as MentorshipAppointment[];
 
+    const mentorIds = Array.from(new Set(mentorships.map((m) => m.mentorId).filter(Boolean)));
+    const mentorById = new Map<string, FirestoreMentor>();
+    if (mentorIds.length > 0) {
+      const mentorDocs = await db.getAll(...mentorIds.map((id) => db.collection(USERS).doc(id)));
+      mentorDocs.forEach((doc) => {
+        if (doc.exists) {
+          mentorById.set(doc.id, doc.data() as FirestoreMentor);
+        }
+      });
+    }
+
+    const response: MentorshipAppointmentResponseAsHacker[] = mentorships.map((m) => {
+      const mentor = mentorById.get(m.mentorId);
+      return {
+        id: m.id,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        mentorId: m.mentorId,
+        mentorName: mentor?.displayName,
+        mentorSpecialization: mentor?.specialization,
+        hackerId: m.hackerId,
+        hackerName: m.hackerName,
+        teamName: m.teamName,
+        hackerDescription: m.hackerDescription,
+        location: m.location,
+        offlineLocation: m.offlineLocation,
+        meetLink: m.meetLink,
+      };
+    });
+
     return res.status(200).json({
-      data: mentorships,
+      data: response,
     });
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMyMentorships: ${(error as Error).message} `)

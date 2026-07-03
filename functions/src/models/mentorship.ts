@@ -1,7 +1,7 @@
 export interface FirestoreMentor {
   id?: string;
   email: string;
-  name: string;
+  displayName: string;
   mentor: boolean;
   specialization: string;
   discordUsername: string;
@@ -16,6 +16,7 @@ export interface MentorshipAppointment {
   endTime: number;
   mentorId: string;
   hackerId?: string; // a hacker book for the whole team
+  hackerName?: string;
   teamName: string;
   hackerDescription?: string; // desc given needed by hacker
   location: string;
@@ -51,6 +52,8 @@ export interface MentorshipAppointmentResponseAsHacker {
   startTime: number;
   endTime: number;
   mentorId: string;
+  mentorName?: string;
+  mentorSpecialization?: string;
   hackerId?: string;
   hackerName?: string;
   teamName?: string;
