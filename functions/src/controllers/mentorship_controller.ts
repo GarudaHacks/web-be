@@ -707,6 +707,7 @@ export const hackerGetMyMentorships = async (
         mentorId: m.mentorId,
         mentorName: mentor?.displayName,
         mentorSpecialization: mentor?.specialization,
+        mentorTitle: mentor?.mentorTitle,
         hackerId: m.hackerId,
         hackerName: m.hackerName,
         teamName: m.teamName,

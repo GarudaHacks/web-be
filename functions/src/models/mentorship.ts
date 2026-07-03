@@ -6,7 +6,7 @@ export interface FirestoreMentor {
   specialization: string;
   discordUsername: string;
   intro: string; // introduction given by mentor
-
+  mentorTitle: string; // short title for mentor
   available?: number // to represent how many slots available
 }
 
@@ -53,6 +53,7 @@ export interface MentorshipAppointmentResponseAsHacker {
   endTime: number;
   mentorId: string;
   mentorName?: string;
+  mentorTitle?: string;
   mentorSpecialization?: string;
   hackerId?: string;
   hackerName?: string;
