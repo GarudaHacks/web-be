@@ -1,6 +1,6 @@
 import { readFileSync } from "fs";
 import { join } from "path";
-import { MentorshipEmailProps } from "./mentorshipBooked";
+import { MentorshipEmailProps, buildMeetSection } from "./mentorshipBooked";
 
 export interface HackerMentorshipEmailProps extends MentorshipEmailProps {
   location: string;
@@ -24,5 +24,6 @@ export function mentorshipBookedHacker(props: HackerMentorshipEmailProps): strin
     .replace(/\$\{schedulePacific\}/g, props.schedulePacific)
     .replace(/\$\{pacificLabel\}/g, props.pacificLabel)
     .replace(/\$\{duration\}/g, String(props.duration))
-    .replace(/\$\{portalLink\}/g, props.portalLink);
+    .replace(/\$\{portalLink\}/g, props.portalLink)
+    .replace(/\$\{meetSection\}/g, buildMeetSection(props.meetLink));
 }

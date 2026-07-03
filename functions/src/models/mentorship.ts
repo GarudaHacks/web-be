@@ -24,6 +24,8 @@ export interface MentorshipAppointment {
   mentorMarkAsAfk: boolean; // mark if this team is AFK
   mentorNotes: string // to give this appointment a note
   hackerMarkAsDone: boolean;
+  meetLink?: string; // Google Meet link, set when location is online
+  calendarEventId?: string; // Google Calendar event backing the Meet link
 }
 
 export interface MentorshipAppointmentResponseAsMentor {
@@ -40,6 +42,8 @@ export interface MentorshipAppointmentResponseAsMentor {
   mentorMarkAsDone?: boolean;
   mentorMarkAsAfk?: boolean; // mark if this team is AFK
   mentorNotes?: string // to give this appointment a note
+  meetLink?: string; // Google Meet link, set when location is online
+  calendarEventId?: string; // Google Calendar event backing the Meet link
 }
 
 export interface MentorshipAppointmentResponseAsHacker {
@@ -53,4 +57,5 @@ export interface MentorshipAppointmentResponseAsHacker {
   hackerDescription?: string; // desc given needed by hacker
   location: string; // offline or online
   offlineLocation?: string; // to be filled if the location is offline
+  meetLink?: string; // Google Meet link, set when location is online
 }

@@ -7,6 +7,7 @@ import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
 import { epochRangeToScheduleDisplay } from "../utils/date";
 import { sendMentorshipBookedEmail, sendMentorshipCanceledEmail, sendMentorshipBookedEmailHacker, sendMentorshipCanceledEmailHacker } from "../utils/email_sender";
+import { createMentorshipMeetEvent, cancelMentorshipMeetEvent } from "../utils/google_calendar";
 
 
 const CONFIG = "config";
@@ -484,6 +485,25 @@ export const hackerBookMentorships = async (
 
         const mentorData = mentorSnap.data() as FirestoreMentor
 
+        let meetLink: string | undefined
+        if (mentorshipData.location === "online") {
+          const attendeeEmails = [mentorData.email, hackerData?.email].filter((e): e is string => !!e)
+          const meetEvent = await createMentorshipMeetEvent({
+            summary: `Garuda Hacks Mentorship: ${mentorship.teamName} x ${mentorData.name}`,
+            description: mentorship.hackerDescription,
+            startEpochSeconds: mentorshipData.startTime,
+            endEpochSeconds: mentorshipData.endTime,
+            attendeeEmails,
+          })
+          if (meetEvent) {
+            meetLink = meetEvent.meetLink
+            await db.collection(MENTORSHIPS).doc(mentorship.id).update({
+              meetLink: meetEvent.meetLink,
+              calendarEventId: meetEvent.eventId,
+            })
+          }
+        }
+
         const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
         const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
         await sendMentorshipBookedEmail(mentorData.email, {
@@ -496,6 +516,7 @@ export const hackerBookMentorships = async (
           pacificLabel: schedule.pacificLabel,
           duration,
           portalLink: PORTAL_LINK,
+          meetLink,
         })
         functions.logger.info(`Email sent successfully for mentor ${mentorData.email}:`)
 
@@ -511,6 +532,7 @@ export const hackerBookMentorships = async (
             pacificLabel: schedule.pacificLabel,
             duration,
             portalLink: PORTAL_LINK,
+            meetLink,
           })
           functions.logger.info(`Confirmation email sent successfully for hacker ${hackerData.email}:`)
         }
@@ -610,12 +632,18 @@ export const hackerCancelMentorship = async (
       }
     }
 
+    if (mentorshipData.calendarEventId) {
+      await cancelMentorshipMeetEvent(mentorshipData.calendarEventId)
+    }
+
     await db.collection(MENTORSHIPS).doc(id).update({
       hackerId: FieldValue.delete(),
       hackerName: FieldValue.delete(),
       teamName: FieldValue.delete(),
       hackerDescription: FieldValue.delete(),
       offlineLocation: FieldValue.delete(),
+      meetLink: FieldValue.delete(),
+      calendarEventId: FieldValue.delete(),
     })
 
     return res.status(200).json({ message: "Mentorship has been canceled." })

@@ -24,6 +24,7 @@
     "express": "^4.22.2",
     "firebase-admin": "^12.7.0",
     "firebase-functions": "^7.2.5",
+    "googleapis": "^173.0.0",
     "jsonwebtoken": "^9.0.2",
     "lodash": "^4.17.21",
     "luxon": "^3.7.1",
