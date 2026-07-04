@@ -640,7 +640,7 @@ export const hackerCancelMentorship = async (
       db.collection(USERS).doc(mentorshipData.mentorId).get(),
       db.collection(USERS).doc(uid).get(),
     ])
-    const mentorData = mentorSnapshot.data()
+    const mentorData = mentorSnapshot.data() as FirestoreMentor
     const hackerData = hackerSnapshot.data()
 
     if (mentorData && mentorshipData.teamName && mentorshipData.hackerName) {
@@ -649,7 +649,7 @@ export const hackerCancelMentorship = async (
       const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
       const locationDisplay = formatMentorshipLocation(mentorshipData.location, mentorshipData.offlineLocation)
       await sendMentorshipCanceledEmail(mentorData.email, {
-        mentorName: mentorData.name,
+        mentorName: mentorData.displayName,
         teamName: mentorshipData.teamName,
         hackerName: mentorshipData.hackerName,
         location: locationDisplay,
@@ -663,7 +663,7 @@ export const hackerCancelMentorship = async (
 
       if (hackerData?.email) {
         await sendMentorshipCanceledEmailHacker(hackerData.email, {
-          mentorName: mentorData.name,
+          mentorName: mentorData.displayName,
           teamName: mentorshipData.teamName,
           hackerName: mentorshipData.hackerName,
           location: locationDisplay,
