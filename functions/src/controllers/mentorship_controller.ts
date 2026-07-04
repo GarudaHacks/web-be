@@ -20,6 +20,9 @@ const USERS = "users";
 const START_TIME = "startTime";
 const PORTAL_LINK = "https://portal.garudahacks.com";
 
+/**
+ * Correctly format mentorship location.
+ */
 function formatMentorshipLocation(location: string, offlineLocation?: string): string {
   return location === "online" ? "Online" : (offlineLocation || "Offline");
 }
