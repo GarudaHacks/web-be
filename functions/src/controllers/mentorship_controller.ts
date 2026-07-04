@@ -1,5 +1,6 @@
 import { db } from "../config/firebase"
 import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAsHacker, MentorshipAppointmentResponseAsMentor } from "../models/mentorship";
+import { User } from "../models/user";
 import { Request, Response } from "express";
 import { DateTime } from 'luxon';
 import { CollectionReference, DocumentData, FieldPath, FieldValue } from "firebase-admin/firestore";
@@ -98,8 +99,41 @@ export const mentorGetMyMentorships = async (
       mentorships = mentorships.filter(m => m.hackerId == null);
     }
 
+    const hackerIds = Array.from(new Set(mentorships.map((m) => m.hackerId).filter((id): id is string => !!id)));
+    const hackerById = new Map<string, User>();
+    if (hackerIds.length > 0) {
+      const hackerDocs = await db.getAll(...hackerIds.map((id) => db.collection(USERS).doc(id)));
+      hackerDocs.forEach((doc) => {
+        if (doc.exists) {
+          hackerById.set(doc.id, doc.data() as User);
+        }
+      });
+    }
+
+    const response: MentorshipAppointmentResponseAsMentor[] = mentorships.map((m) => {
+      const hacker = m.hackerId ? hackerById.get(m.hackerId) : undefined;
+      return {
+        id: m.id,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        mentorId: m.mentorId,
+        hackerId: m.hackerId,
+        hackerName: m.hackerName,
+        hackerEmail: hacker?.email,
+        teamName: m.teamName,
+        hackerDescription: m.hackerDescription,
+        location: m.location,
+        offlineLocation: m.offlineLocation,
+        mentorMarkAsDone: m.mentorMarkAsDone,
+        mentorMarkAsAfk: m.mentorMarkAsAfk,
+        mentorNotes: m.mentorNotes,
+        meetLink: m.meetLink,
+        calendarEventId: m.calendarEventId,
+      };
+    });
+
     return res.status(200).json({
-      data: mentorships,
+      data: response,
     });
   } catch (error) {
     functions.logger.error(`Error when trying mentorGetMyMentorships: ${(error as Error).message} `)

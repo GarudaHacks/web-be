@@ -36,6 +36,7 @@ export interface MentorshipAppointmentResponseAsMentor {
   mentorId: string;
   hackerId?: string;
   hackerName?: string;
+  hackerEmail?: string;
   teamName?: string;
   hackerDescription?: string; // desc given needed by hacker
   location: string; // offline or online
