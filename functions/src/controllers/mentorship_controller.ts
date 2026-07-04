@@ -20,6 +20,10 @@ const USERS = "users";
 const START_TIME = "startTime";
 const PORTAL_LINK = "https://portal.garudahacks.com";
 
+function formatMentorshipLocation(location: string, offlineLocation?: string): string {
+  return location === "online" ? "Online" : (offlineLocation || "Offline");
+}
+
 /**
  * Get mentorship config.
  */
@@ -540,10 +544,12 @@ export const hackerBookMentorships = async (
 
         const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
         const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
+        const locationDisplay = formatMentorshipLocation(mentorshipData.location, mentorshipData.offlineLocation || mentorship.offlineLocation)
         await sendMentorshipBookedEmail(mentorData.email, {
           mentorName: mentorData.displayName,
           teamName: mentorship.teamName,
           hackerName: mentorship.hackerName,
+          location: locationDisplay,
           scheduleWib: schedule.wib,
           scheduleUtc: schedule.utc,
           schedulePacific: schedule.pacific,
@@ -559,7 +565,7 @@ export const hackerBookMentorships = async (
             mentorName: mentorData.displayName,
             teamName: mentorship.teamName,
             hackerName: mentorship.hackerName,
-            location: mentorship.offlineLocation || mentorshipData.location,
+            location: locationDisplay,
             scheduleWib: schedule.wib,
             scheduleUtc: schedule.utc,
             schedulePacific: schedule.pacific,
@@ -638,10 +644,12 @@ export const hackerCancelMentorship = async (
       // sendEmail
       const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
       const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
+      const locationDisplay = formatMentorshipLocation(mentorshipData.location, mentorshipData.offlineLocation)
       await sendMentorshipCanceledEmail(mentorData.email, {
         mentorName: mentorData.name,
         teamName: mentorshipData.teamName,
         hackerName: mentorshipData.hackerName,
+        location: locationDisplay,
         scheduleWib: schedule.wib,
         scheduleUtc: schedule.utc,
         schedulePacific: schedule.pacific,
@@ -655,7 +663,7 @@ export const hackerCancelMentorship = async (
           mentorName: mentorData.name,
           teamName: mentorshipData.teamName,
           hackerName: mentorshipData.hackerName,
-          location: mentorshipData.offlineLocation || mentorshipData.location,
+          location: locationDisplay,
           scheduleWib: schedule.wib,
           scheduleUtc: schedule.utc,
           schedulePacific: schedule.pacific,

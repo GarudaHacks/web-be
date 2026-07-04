@@ -5,6 +5,7 @@ export interface MentorshipEmailProps {
   mentorName: string;
   teamName: string;
   hackerName: string;
+  location: string; // "Online" or the offline location
   scheduleWib: string;
   scheduleUtc: string;
   schedulePacific: string;
@@ -41,6 +42,7 @@ export function mentorshipBooked(props: MentorshipEmailProps): string {
     .replace(/\$\{mentorName\}/g, props.mentorName)
     .replace(/\$\{teamName\}/g, props.teamName)
     .replace(/\$\{hackerName\}/g, props.hackerName)
+    .replace(/\$\{location\}/g, props.location)
     .replace(/\$\{scheduleWib\}/g, props.scheduleWib)
     .replace(/\$\{scheduleUtc\}/g, props.scheduleUtc)
     .replace(/\$\{schedulePacific\}/g, props.schedulePacific)

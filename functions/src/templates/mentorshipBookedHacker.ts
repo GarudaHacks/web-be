@@ -2,9 +2,7 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { MentorshipEmailProps, buildMeetSection } from "./mentorshipBooked";
 
-export interface HackerMentorshipEmailProps extends MentorshipEmailProps {
-  location: string;
-}
+export type HackerMentorshipEmailProps = MentorshipEmailProps;
 
 const template = readFileSync(join(__dirname, "mentorshipBookedHacker.html"), "utf-8");
 
