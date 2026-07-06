@@ -243,6 +243,16 @@ export const mentorPutMyMentorship = async (
 /** ******************
  * HACKER ENDPOINTS *
  ********************/
+interface MentorPublic {
+  id: string
+  mentor: boolean
+  email: string
+  discordUsername: string
+  displayName: string
+  intro: string
+  title: string
+  specialization: string
+}
 export const hackerGetMentors = async (
   req: Request,
   res: Response
@@ -261,16 +271,7 @@ export const hackerGetMentors = async (
     }
 
     const snapshot = await query.get()
-    const allMentors: {
-      id?: string;
-      email: string;
-      name: string;
-      mentor: boolean;
-      specialization: string;
-      discordUsername: string;
-      intro: string; // introduction given by mentor
-
-    }[] = [];
+    const allMentors: MentorPublic[] = [];
 
     await Promise.all(
       snapshot.docs.map(async (mentor) => {
@@ -279,11 +280,12 @@ export const hackerGetMentors = async (
         allMentors.push({
           id: mentor.id,
           email: mentorData.email,
-          name: mentorData.name,
+          displayName: mentorData.displayName,
           mentor: mentorData.mentor,
           specialization: mentorData.specialization,
           discordUsername: mentorData.discordUsername,
           intro: mentorData.intro,
+          title: mentorData.title
         });
 
       })
@@ -318,16 +320,19 @@ export const hackerGetMentor = async (
       })
     }
 
+    const mentorData: MentorPublic = {
+      id: data.id,
+      email: data.email,
+      displayName: data.displayName,
+      mentor: data.mentor,
+      specialization: data.specialization,
+      discordUsername: data.discordUsername,
+      intro: data.intro,
+      title: data.title
+    }
+
     return res.status(200).json({
-      data: {
-        id: data.id,
-        email: data.email,
-        name: data.name,
-        mentor: data.mentor,
-        specialization: data.specialization,
-        discordUsername: data.discordUsername,
-        intro: data.intro
-      }
+      data: mentorData
     })
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMentor: ${(error as Error).message} `)
