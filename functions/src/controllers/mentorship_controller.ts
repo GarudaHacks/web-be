@@ -16,6 +16,7 @@ const MENTORSHIP_CONIFG = "mentorshipConfig";
 const MENTORSHIPS = "mentorships";
 const MENTOR_ID = "mentorId";
 const HACKER_ID = "hackerId";
+const IS_BOOKED = "isBooked";
 const USERS = "users";
 const START_TIME = "startTime";
 const PORTAL_LINK = "https://portal.garudahacks.com";
@@ -501,6 +502,7 @@ export const hackerBookMentorships = async (
           teamName: mentorshipRequest.teamName,
           hackerDescription: mentorshipRequest.hackerDescription,
           offlineLocation: mentorshipRequest.offlineLocation || null,
+          isBooked: true
         });
       }
     });
@@ -694,6 +696,7 @@ export const hackerCancelMentorship = async (
       offlineLocation: FieldValue.delete(),
       meetLink: FieldValue.delete(),
       calendarEventId: FieldValue.delete(),
+      isBooked: false,
     })
 
     return res.status(200).json({ message: "Mentorship has been canceled." })
@@ -810,8 +813,10 @@ export const hackerGetMyMentorship = async (
   }
 }
 
-
-export const getMentorSchedules = async (
+/**
+ * Get available slots from mentor.
+ */
+export const hackerGetAvailableMentorSchedules = async (
   req: Request,
   res: Response
 ) => {
@@ -825,6 +830,7 @@ export const getMentorSchedules = async (
 
     let query = db.collection(MENTORSHIPS)
       .where(MENTOR_ID, "==", mentorId)
+      .where(IS_BOOKED, "==", false)
 
     if (limit) {
       const numericLimit = parseInt(limit as string, 10);
