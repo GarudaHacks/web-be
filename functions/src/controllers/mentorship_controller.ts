@@ -810,8 +810,13 @@ export const hackerGetMyMentorship = async (
   }
 }
 
-
-export const getMentorSchedules = async (
+/**
+ * Get available slots from mentor.
+ * @param req 
+ * @param res 
+ * @returns 
+ */
+export const hackerGetAvailableMentorSchedules = async (
   req: Request,
   res: Response
 ) => {
@@ -825,6 +830,7 @@ export const getMentorSchedules = async (
 
     let query = db.collection(MENTORSHIPS)
       .where(MENTOR_ID, "==", mentorId)
+      .where(HACKER_ID, "!=", null)
 
     if (limit) {
       const numericLimit = parseInt(limit as string, 10);
