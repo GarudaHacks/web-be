@@ -1578,7 +1578,13 @@ export const getPassed = async (
         const passedUserData = snap.data() as MatchUserDoc;
         const hackCardData = hackCards.get(snap.id) ?? null;
         const discordUsername = resolveDiscordUsername(hackCardData);
-        return buildMatchDeckCard(snap.id, passedUserData, hackCardData, discordUsername);
+        const card  = buildMatchDeckCard(snap.id, passedUserData, hackCardData, discordUsername);
+
+        return {
+          ...card,
+          firstName: hackCardData?.username ?? "",
+          lastName: "",
+        };
       });
 
     return res.status(200).json({data: passedCards});
