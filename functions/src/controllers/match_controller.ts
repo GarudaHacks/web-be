@@ -286,7 +286,7 @@ const isUserEligibleForOptIn = (userData: MatchUserDoc): boolean => {
 
 
   return (
-        userData.status === APPLICATION_STATUS.CONFIRMED_RSVP &&
+    userData.status === APPLICATION_STATUS.CONFIRMED_RSVP &&
         userData.mentor !== true &&
         userData.admin !== true
   );
