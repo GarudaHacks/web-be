@@ -1,12 +1,14 @@
 import { db } from "../config/firebase"
 import { FirestoreMentor, MentorshipAppointment, MentorshipAppointmentResponseAsHacker, MentorshipAppointmentResponseAsMentor } from "../models/mentorship";
+import { User } from "../models/user";
 import { Request, Response } from "express";
 import { DateTime } from 'luxon';
 import { CollectionReference, DocumentData, FieldPath, FieldValue } from "firebase-admin/firestore";
 import { MentorshipConfig } from "../types/config";
 import * as functions from "firebase-functions";
-import nodemailer from "nodemailer";
-import { epochToStringDate } from "../utils/date";
+import { epochRangeToScheduleDisplay } from "../utils/date";
+import { sendMentorshipBookedEmail, sendMentorshipCanceledEmail, sendMentorshipBookedEmailHacker, sendMentorshipCanceledEmailHacker } from "../utils/email_sender";
+import { createMentorshipMeetEvent, cancelMentorshipMeetEvent } from "../utils/google_calendar";
 
 
 const CONFIG = "config";
@@ -16,184 +18,13 @@ const MENTOR_ID = "mentorId";
 const HACKER_ID = "hackerId";
 const USERS = "users";
 const START_TIME = "startTime";
+const PORTAL_LINK = "https://portal.garudahacks.com";
 
-const transporter = nodemailer.createTransport({
-  host: "live.smtp.mailtrap.io",
-  port: 587,
-  auth: {
-    user: process.env.MAILTRAP_USER,
-    pass: process.env.MAILTRAP_PASS,
-  },
-});
-
-interface MailOptions {
-  from: string | { name: string; address: string };
-  to: string;
-  subject: string;
-  html: string;
-  text: string;
-}
-
-const createMentorshipCancelMailOptions = (
-  mentorEmail: string,
-  mentorName: string,
-  teamName: string,
-  hackerName: string,
-  startDate: string,
-  endDate: string,
-  portalLink: string,
-  duration: number
-): MailOptions => ({
-  from: {
-    name: "Garuda Hacks",
-    address: "no-reply@garudahacks.com"
-  },
-  to: mentorEmail,
-  subject: `Team ${teamName} Just Canceled A Mentorship Session`,
-  html: `
-<!DOCTYPE html>
-<html>
-
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Mentorship Booking Canceled</title>
-  <meta name="color-scheme" content="dark">
-  <meta name="supported-color-schemes" content="dark">
-</head>
-<body
-  style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-  <div
-    style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-    <h1 style="color: #fff; margin-bottom: 20px; font-size: 20px;">Hi, ${mentorName}</h1>
-    <p style="color: #ff4000; margin-bottom: 25px;">The booking for team ${teamName} <strong>has been canceled</strong>.
-    </p>
-    <div style="border: 1px solid #718096; border-radius: 8px; color: #718096">
-      <div>
-        <h4>Team Name: ${teamName}</h4>
-        <h4>Hacker Name: ${hackerName}</h4>
-      </div>
-
-      <div>
-        <p>${startDate} - ${endDate} (${duration} minutes)</p>
-      </div>
-
-      <div>
-        <a href="${portalLink}"
-          style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">View
-          In Portal</a>
-      </div>
-    </div>
-    <div style="padding-top: 10px;">
-      The cancelation is permissible up to 45 minutes before the scheduled time.
-    </div>
-  </div>
-  <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-    <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-    <p style="margin-top: 10px;">
-      <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-      <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-    </p>
-  </div>
-</body>
-</html>
-`,
-  text: `Team ${teamName} Just Canceled A Mentorship Session.`
-})
-
-const createMentorshipBookingMailOptions = (
-  mentorEmail: string,
-  mentorName: string,
-  teamName: string,
-  hackerName: string,
-  startDate: string,
-  endDate: string,
-  portalLink: string,
-  duration: number,
-): MailOptions => ({
-  from: {
-    name: "Garuda Hacks",
-    address: "no-reply@garudahacks.com"
-  },
-  to: mentorEmail,
-  subject: `Team ${teamName} Just Booked A Mentorship Session`,
-  html: `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Mentorship Booking</title>
-      <meta name="color-scheme" content="dark">
-      <meta name="supported-color-schemes" content="dark">
-    </head>
-    <body
-      style="font-family: Arial, sans-serif; line-height: 1.6; color: #fff; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #1a1a1a;">
-      <div
-        style="background-color: #2d2d2d; border-radius: 8px; padding: 30px; text-align: center; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
-        <h1 style="color: #fff; margin-bottom: 20px; font-size: 20px;">Hi, ${mentorName}<br></h1>
-        <p style="color: #e2e8f0; margin-bottom: 25px;">A team just booked a mentorship session with you.</p>
-
-        <div style="border: 1px solid #718096; border-radius: 8px;">
-          <div>
-            <h4>Team Name: ${teamName}</h4>
-            <h4>Hacker Name: ${hackerName}</h4>
-          </div>
-
-          <div>
-            <p>${startDate} - ${endDate} (${duration})</p>
-          </div>
-
-          <div>
-            <p>Click here to view portal.</p>
-            <a href="${portalLink}"
-              style="background-color: #4299e1; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block; font-weight: bold; margin-bottom: 25px;">View
-              In Portal</a>
-          </div>
-        </div>
-
-      </div>
-      <div style="text-align: center; margin-top: 20px; color: #718096; font-size: 12px;">
-        <p>© ${new Date().getFullYear()} Garuda Hacks. All rights reserved.</p>
-        <p style="margin-top: 10px;">
-          <a href="https://garudahacks.com" style="color: #718096; text-decoration: none;">Visit our website</a> |
-          <a href="mailto:hiba@garudahacks.com" style="color: #718096; text-decoration: none;">Contact Support</a>
-        </p>
-      </div>
-    </body>
-    </html>
-  `,
-  text: `Team ${teamName} Just Booked A Mentorship Session.`
-})
-
-const sendMentorshipBookingEmail = async (
-  mentorEmail: string,
-  mentorName: string,
-  teamName: string,
-  hackerName: string,
-  startDate: string,
-  endDate: string,
-  portalLink: string,
-  duration: number,
-): Promise<void> => {
-  const mailOptions = createMentorshipBookingMailOptions(mentorEmail, mentorName, teamName, hackerName, startDate, endDate, portalLink, duration)
-  await transporter.sendMail(mailOptions)
-  functions.logger.info("Booking email sent successfuly to:", mentorEmail)
-}
-
-const sendMentorshipCancelEmail = async (
-  mentorEmail: string,
-  mentorName: string,
-  teamName: string,
-  hackerName: string,
-  startDate: string,
-  endDate: string,
-  portalLink: string,
-  duration: number,
-): Promise<void> => {
-  const mailOptions = createMentorshipCancelMailOptions(mentorEmail, mentorName, teamName, hackerName, startDate, endDate, portalLink, duration)
-  await transporter.sendMail(mailOptions)
-  functions.logger.info("Cancel email sent successfuly to:", mentorEmail)
+/**
+ * Correctly format mentorship location.
+ */
+function formatMentorshipLocation(location: string, offlineLocation?: string): string {
+  return location === "online" ? "Online" : (offlineLocation || "Offline");
 }
 
 /**
@@ -248,7 +79,7 @@ export const mentorGetMyMentorships = async (
 
     query = query.where(MENTOR_ID, "==", uid);
 
-    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+    const currentTimeSeconds = DateTime.now().toUnixInteger();
     if (upcomingOnly === 'true') {
       query = query.where(START_TIME, ">=", currentTimeSeconds);
     } else if (recentOnly === 'true') {
@@ -275,8 +106,41 @@ export const mentorGetMyMentorships = async (
       mentorships = mentorships.filter(m => m.hackerId == null);
     }
 
+    const hackerIds = Array.from(new Set(mentorships.map((m) => m.hackerId).filter((id): id is string => !!id)));
+    const hackerById = new Map<string, User>();
+    if (hackerIds.length > 0) {
+      const hackerDocs = await db.getAll(...hackerIds.map((id) => db.collection(USERS).doc(id)));
+      hackerDocs.forEach((doc) => {
+        if (doc.exists) {
+          hackerById.set(doc.id, doc.data() as User);
+        }
+      });
+    }
+
+    const response: MentorshipAppointmentResponseAsMentor[] = mentorships.map((m) => {
+      const hacker = m.hackerId ? hackerById.get(m.hackerId) : undefined;
+      return {
+        id: m.id,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        mentorId: m.mentorId,
+        hackerId: m.hackerId,
+        hackerName: m.hackerName,
+        hackerEmail: hacker?.email,
+        teamName: m.teamName,
+        hackerDescription: m.hackerDescription,
+        location: m.location,
+        offlineLocation: m.offlineLocation,
+        mentorMarkAsDone: m.mentorMarkAsDone,
+        mentorMarkAsAfk: m.mentorMarkAsAfk,
+        mentorNotes: m.mentorNotes,
+        meetLink: m.meetLink,
+        calendarEventId: m.calendarEventId,
+      };
+    });
+
     return res.status(200).json({
-      data: mentorships,
+      data: response,
     });
   } catch (error) {
     functions.logger.error(`Error when trying mentorGetMyMentorships: ${(error as Error).message} `)
@@ -379,6 +243,16 @@ export const mentorPutMyMentorship = async (
 /** ******************
  * HACKER ENDPOINTS *
  ********************/
+interface MentorPublic {
+  id: string
+  mentor: boolean
+  email: string
+  discordUsername: string
+  displayName: string
+  intro: string
+  mentorTitle: string
+  specialization: string
+}
 export const hackerGetMentors = async (
   req: Request,
   res: Response
@@ -397,16 +271,7 @@ export const hackerGetMentors = async (
     }
 
     const snapshot = await query.get()
-    const allMentors: {
-      id?: string;
-      email: string;
-      name: string;
-      mentor: boolean;
-      specialization: string;
-      discordUsername: string;
-      intro: string; // introduction given by mentor
-
-    }[] = [];
+    const allMentors: MentorPublic[] = [];
 
     await Promise.all(
       snapshot.docs.map(async (mentor) => {
@@ -415,11 +280,12 @@ export const hackerGetMentors = async (
         allMentors.push({
           id: mentor.id,
           email: mentorData.email,
-          name: mentorData.name,
+          displayName: mentorData.displayName,
           mentor: mentorData.mentor,
           specialization: mentorData.specialization,
           discordUsername: mentorData.discordUsername,
           intro: mentorData.intro,
+          mentorTitle: mentorData.mentorTitle
         });
 
       })
@@ -454,16 +320,19 @@ export const hackerGetMentor = async (
       })
     }
 
+    const mentorData: MentorPublic = {
+      id: data.id,
+      email: data.email,
+      displayName: data.displayName,
+      mentor: data.mentor,
+      specialization: data.specialization,
+      discordUsername: data.discordUsername,
+      intro: data.intro,
+      mentorTitle: data.mentorTitle
+    }
+
     return res.status(200).json({
-      data: {
-        id: data.id,
-        email: data.email,
-        name: data.name,
-        mentor: data.mentor,
-        specialization: data.specialization,
-        discordUsername: data.discordUsername,
-        intro: data.intro
-      }
+      data: mentorData
     })
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMentor: ${(error as Error).message} `)
@@ -589,7 +458,7 @@ export const hackerBookMentorships = async (
     }
 
     const mentorshipsCollection = db.collection(MENTORSHIPS);
-    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+    const currentTimeSeconds = DateTime.now().toUnixInteger();
     const existingBookingsQuery = mentorshipsCollection
       .where(HACKER_ID, '==', uid)
       .where(START_TIME, '>', currentTimeSeconds);
@@ -610,7 +479,7 @@ export const hackerBookMentorships = async (
         throw new Error("One or more mentorship slots could not be found.");
       }
 
-      const thirtyMinsFromNow = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger()) + (30 * 60);
+      const thirtyMinsFromNow = DateTime.now().toUnixInteger() + (30 * 60);
 
       for (const doc of requestedMentorshipsSnapshot.docs) {
         const data = doc.data();
@@ -636,6 +505,9 @@ export const hackerBookMentorships = async (
       }
     });
 
+    const hackerSnap = await db.collection(USERS).doc(uid).get()
+    const hackerData = hackerSnap.data()
+
     for (const mentorship of mentorships) {
       try {
         const mentorshipSnap = await db.collection(MENTORSHIPS).doc(mentorship.id).get()
@@ -659,17 +531,59 @@ export const hackerBookMentorships = async (
 
         const mentorData = mentorSnap.data() as FirestoreMentor
 
-        await sendMentorshipBookingEmail(
-          mentorData.email,
-          mentorData.name,
-          mentorship.teamName,
-          mentorship.hackerName,
-          `${epochToStringDate(mentorshipData.startTime)}`,
-          `${epochToStringDate(mentorshipData.endTime)}`,
-          "https://portal.garudahacks.com",
-          (mentorshipData.endTime - mentorshipData.startTime) / 60
-        )
+        let meetLink: string | undefined
+        if (mentorshipData.location === "online") {
+          const attendeeEmails = [mentorData.email, hackerData?.email].filter((e): e is string => !!e)
+          const meetEvent = await createMentorshipMeetEvent({
+            summary: `Garuda Hacks Mentorship: ${mentorship.teamName} x ${mentorData.displayName}`,
+            description: mentorship.hackerDescription,
+            startEpochSeconds: mentorshipData.startTime,
+            endEpochSeconds: mentorshipData.endTime,
+            attendeeEmails,
+          })
+          if (meetEvent) {
+            meetLink = meetEvent.meetLink
+            await db.collection(MENTORSHIPS).doc(mentorship.id).update({
+              meetLink: meetEvent.meetLink,
+              calendarEventId: meetEvent.eventId,
+            })
+          }
+        }
+
+        const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
+        const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
+        const locationDisplay = formatMentorshipLocation(mentorshipData.location, mentorshipData.offlineLocation || mentorship.offlineLocation)
+        await sendMentorshipBookedEmail(mentorData.email, {
+          mentorName: mentorData.displayName,
+          teamName: mentorship.teamName,
+          hackerName: mentorship.hackerName,
+          location: locationDisplay,
+          scheduleWib: schedule.wib,
+          scheduleUtc: schedule.utc,
+          schedulePacific: schedule.pacific,
+          pacificLabel: schedule.pacificLabel,
+          duration,
+          portalLink: PORTAL_LINK,
+          meetLink,
+        })
         functions.logger.info(`Email sent successfully for mentor ${mentorData.email}:`)
+
+        if (hackerData?.email) {
+          await sendMentorshipBookedEmailHacker(hackerData.email, {
+            mentorName: mentorData.displayName,
+            teamName: mentorship.teamName,
+            hackerName: mentorship.hackerName,
+            location: locationDisplay,
+            scheduleWib: schedule.wib,
+            scheduleUtc: schedule.utc,
+            schedulePacific: schedule.pacific,
+            pacificLabel: schedule.pacificLabel,
+            duration,
+            portalLink: PORTAL_LINK,
+            meetLink,
+          })
+          functions.logger.info(`Confirmation email sent successfully for hacker ${hackerData.email}:`)
+        }
       } catch (error) {
         functions.logger.error(`Error when trying to send email for mentorship ${mentorship.id}: ${(error as Error).message}`)
       }
@@ -720,28 +634,56 @@ export const hackerCancelMentorship = async (
     }
 
     // handle if booking is aleady 45 mins away
-    const fortyFiveMinsFromNow = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger()) + (45 * 60);
+    const fortyFiveMinsFromNow = DateTime.now().toUnixInteger() + (45 * 60);
     if (mentorshipData.startTime < fortyFiveMinsFromNow) {
       return res.status(400).json({ error: "Mentorship cannot be canceled less than 45 minutes before schedule." })
     }
 
 
-    // get mentor data
-    const mentorSnapshot = await db.collection(USERS).doc(mentorshipData.mentorId).get()
-    const mentorData = mentorSnapshot.data()
+    // get mentor and hacker data
+    const [mentorSnapshot, hackerSnapshot] = await Promise.all([
+      db.collection(USERS).doc(mentorshipData.mentorId).get(),
+      db.collection(USERS).doc(uid).get(),
+    ])
+    const mentorData = mentorSnapshot.data() as FirestoreMentor
+    const hackerData = hackerSnapshot.data()
 
     if (mentorData && mentorshipData.teamName && mentorshipData.hackerName) {
       // sendEmail
-      await sendMentorshipCancelEmail(
-        mentorData.email,
-        mentorData.name,
-        mentorshipData.teamName,
-        mentorshipData.hackerName,
-        `${epochToStringDate(mentorshipData.startTime)}`,
-        `${epochToStringDate(mentorshipData.endTime)}`,
-        "https://portal.garudahacks.com",
-        (mentorshipData.endTime - mentorshipData.startTime) / 60
-      )
+      const schedule = epochRangeToScheduleDisplay(mentorshipData.startTime, mentorshipData.endTime)
+      const duration = (mentorshipData.endTime - mentorshipData.startTime) / 60
+      const locationDisplay = formatMentorshipLocation(mentorshipData.location, mentorshipData.offlineLocation)
+      await sendMentorshipCanceledEmail(mentorData.email, {
+        mentorName: mentorData.displayName,
+        teamName: mentorshipData.teamName,
+        hackerName: mentorshipData.hackerName,
+        location: locationDisplay,
+        scheduleWib: schedule.wib,
+        scheduleUtc: schedule.utc,
+        schedulePacific: schedule.pacific,
+        pacificLabel: schedule.pacificLabel,
+        duration,
+        portalLink: PORTAL_LINK,
+      })
+
+      if (hackerData?.email) {
+        await sendMentorshipCanceledEmailHacker(hackerData.email, {
+          mentorName: mentorData.displayName,
+          teamName: mentorshipData.teamName,
+          hackerName: mentorshipData.hackerName,
+          location: locationDisplay,
+          scheduleWib: schedule.wib,
+          scheduleUtc: schedule.utc,
+          schedulePacific: schedule.pacific,
+          pacificLabel: schedule.pacificLabel,
+          duration,
+          portalLink: PORTAL_LINK,
+        })
+      }
+    }
+
+    if (mentorshipData.calendarEventId) {
+      await cancelMentorshipMeetEvent(mentorshipData.calendarEventId)
     }
 
     await db.collection(MENTORSHIPS).doc(id).update({
@@ -750,6 +692,8 @@ export const hackerCancelMentorship = async (
       teamName: FieldValue.delete(),
       hackerDescription: FieldValue.delete(),
       offlineLocation: FieldValue.delete(),
+      meetLink: FieldValue.delete(),
+      calendarEventId: FieldValue.delete(),
     })
 
     return res.status(200).json({ message: "Mentorship has been canceled." })
@@ -779,7 +723,7 @@ export const hackerGetMyMentorships = async (
 
     query = query.where(HACKER_ID, "==", uid);
 
-    const currentTimeSeconds = Math.floor(DateTime.now().setZone('Asia/Jakarta').toUnixInteger());
+    const currentTimeSeconds = DateTime.now().toUnixInteger();
     if (upcomingOnly === 'true') {
       query = query.where(START_TIME, ">=", currentTimeSeconds);
     } else if (recentOnly === 'true') {
@@ -793,8 +737,41 @@ export const hackerGetMyMentorships = async (
       ...doc.data(),
     })) as MentorshipAppointment[];
 
+    const mentorIds = Array.from(new Set(mentorships.map((m) => m.mentorId).filter(Boolean)));
+    const mentorById = new Map<string, FirestoreMentor>();
+    if (mentorIds.length > 0) {
+      const mentorDocs = await db.getAll(...mentorIds.map((id) => db.collection(USERS).doc(id)));
+      mentorDocs.forEach((doc) => {
+        if (doc.exists) {
+          mentorById.set(doc.id, doc.data() as FirestoreMentor);
+        }
+      });
+    }
+
+    const response: MentorshipAppointmentResponseAsHacker[] = mentorships.map((m) => {
+      const mentor = mentorById.get(m.mentorId);
+      return {
+        id: m.id,
+        startTime: m.startTime,
+        endTime: m.endTime,
+        mentorId: m.mentorId,
+        mentorName: mentor?.displayName,
+        mentorSpecialization: mentor?.specialization,
+        mentorEmail: mentor?.email,
+        mentorDiscordUsername: mentor?.discordUsername,
+        mentorTitle: mentor?.mentorTitle,
+        hackerId: m.hackerId,
+        hackerName: m.hackerName,
+        teamName: m.teamName,
+        hackerDescription: m.hackerDescription,
+        location: m.location,
+        offlineLocation: m.offlineLocation,
+        meetLink: m.meetLink,
+      };
+    });
+
     return res.status(200).json({
-      data: mentorships,
+      data: response,
     });
   } catch (error) {
     functions.logger.error(`Error when trying hackerGetMyMentorships: ${(error as Error).message} `)
