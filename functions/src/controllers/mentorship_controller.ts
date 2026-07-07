@@ -250,7 +250,7 @@ interface MentorPublic {
   discordUsername: string
   displayName: string
   intro: string
-  title: string
+  mentorTitle: string
   specialization: string
 }
 export const hackerGetMentors = async (
@@ -285,7 +285,7 @@ export const hackerGetMentors = async (
           specialization: mentorData.specialization,
           discordUsername: mentorData.discordUsername,
           intro: mentorData.intro,
-          title: mentorData.title
+          mentorTitle: mentorData.mentorTitle
         });
 
       })
@@ -328,7 +328,7 @@ export const hackerGetMentor = async (
       specialization: data.specialization,
       discordUsername: data.discordUsername,
       intro: data.intro,
-      title: data.title
+      mentorTitle: data.mentorTitle
     }
 
     return res.status(200).json({
