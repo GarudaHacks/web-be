@@ -30,7 +30,10 @@ export const validateSessionCookie = async (
   res: Response,
   next: NextFunction
 ) => {
-  if (authExemptRoutes.some((route) => req.path?.startsWith(route))) {
+  // Exact match (modulo trailing slashes) so routes nested under an
+  // exempt prefix never silently skip auth.
+  const normalizedPath = req.path?.replace(/\/+$/, "") ?? "";
+  if (authExemptRoutes.includes(normalizedPath)) {
     return next();
   }
 
@@ -52,10 +55,12 @@ export const validateSessionCookie = async (
     req.user = decodedSessionCookie;
     return next();
   } catch (error) {
+    // Invalid, expired, or revoked session cookie: an auth failure, not a
+    // server error, so the client knows to re-authenticate.
     functions.logger.error("Error while verifying session cookie:", error);
-    res.status(500).json({
-      status: 500,
-      error: "Error while verifying session cookie",
+    res.status(401).json({
+      status: 401,
+      error: "Unauthorized",
     });
   }
 };
