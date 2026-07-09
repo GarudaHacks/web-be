@@ -154,11 +154,16 @@ export const mentorGetMyMentorship = async (
   res: Response
 ) => {
   try {
+    const uid = req.user?.uid
+    if (!uid) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
     const { id } = req.params
 
     // 1. Validate id is in param
     if (!id) {
-      res.status(400).json({
+      return res.status(400).json({
         error: "id is required"
       })
     }
@@ -169,6 +174,11 @@ export const mentorGetMyMentorship = async (
       return res.status(400).json({
         error: "Cannot find mentorship"
       })
+    }
+
+    // 3. Validate mentorship belongs to the requesting mentor
+    if (snapshot.data()?.mentorId !== uid) {
+      return res.status(401).json({ error: "Unauthorized" })
     }
 
     return res.status(200).json({
@@ -193,6 +203,11 @@ export const mentorPutMyMentorship = async (
   res: Response
 ) => {
   try {
+    const uid = req.user?.uid
+    if (!uid) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
     const { id } = req.params
 
     // 1. Validate id is in param
@@ -223,11 +238,17 @@ export const mentorPutMyMentorship = async (
       return res.status(400).json({ error: "No fields to update were provided." });
     }
 
-    await db.collection(MENTORSHIPS).doc(id).update({
-      mentorNotes: mentorNotes,
-      mentorMarkAsDone: mentorMarkAsDone,
-      mentorMarkAsAfk: mentorMarkAsAfk
-    })
+    // 2. Validate mentorship exists and belongs to the requesting mentor
+    const mentorshipRef = db.collection(MENTORSHIPS).doc(id)
+    const mentorshipSnapshot = await mentorshipRef.get()
+    if (!mentorshipSnapshot.exists) {
+      return res.status(404).json({ error: "Mentorship with that ID was not found." });
+    }
+    if (mentorshipSnapshot.data()?.mentorId !== uid) {
+      return res.status(401).json({ error: "Unauthorized" })
+    }
+
+    await mentorshipRef.update(payload)
 
     return res.status(200).json({
       message: "Success updated"
