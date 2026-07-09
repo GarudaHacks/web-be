@@ -352,6 +352,36 @@ const hasDiscordLinked = (userData: MatchUserDoc | null | undefined): boolean =>
   return !!userData?.discord_uid && userData.discord_uid.length > 0;
 };
 
+// A candidate's hack card must be fully filled out to appear in the deck.
+// Missing card entirely, or any of these fields empty, counts as incomplete.
+const isHackCardProfileComplete = (hackCardData: HackCardDoc | null): boolean => {
+  if (!hackCardData) {
+    return false;
+  }
+  const hasSkills = Array.isArray(hackCardData.skills) && hackCardData.skills.length > 0;
+  return !!(
+    hackCardData.username &&
+        hackCardData.role &&
+        hasSkills &&
+        hackCardData.short_bio &&
+        hackCardData.project_interest &&
+        hackCardData.discord
+  );
+};
+
+// Best-effort: turn off match_enabled for users whose hack card is incomplete
+// so they stop showing up in decks until they finish their profile.
+const disableIncompleteProfiles = async (userIds: string[]): Promise<void> => {
+  if (userIds.length === 0) return;
+  await Promise.all(
+    userIds.map((id) =>
+      db.collection(USERS).doc(id).set({match_enabled: false}, {merge: true}).catch((err) => {
+        functions.logger.error(`Failed to disable match_enabled for ${id}: ${(err as Error).message}`);
+      })
+    )
+  );
+};
+
 const isUserOptedIn = (userData: MatchUserDoc): boolean => {
   return userData.match_enabled === true;
 };
@@ -761,6 +791,19 @@ export const optInToMatch = async (
       });
     }
 
+    // Require a fully filled-out hack card before allowing opt-in — same
+    // completeness rule enforced against candidates in getDeck.
+    const ownHackCardSnap = await db.collection(HACK_CARDS).doc(uid).get();
+    const ownHackCardData = ownHackCardSnap.exists ? (ownHackCardSnap.data() as HackCardDoc) : null;
+    if (!isHackCardProfileComplete(ownHackCardData)) {
+      return res.status(403).json({
+        error: "You must complete your profile before opting in",
+      });
+    }
+
+
+
+
     // get users whether they are inTeam, isLeader, and teamFull based on the uid
     const {inTeam, isLeader, teamFull} = await getUserTeamStatus(uid);
     // Block if the user is in a team, unless they are a leader with an open slot.
@@ -903,7 +946,7 @@ export const getDeck = async (
     });
 
     // shuffle eligibleCandidates
-    const selectedCandidates = shuffle(eligibleCandidates).slice(0, limit);
+    // const selectedCandidates = shuffle(eligibleCandidates).slice(0, limit);
 
     // Batch-fetch hack_cards for all selected candidates, keyed by UID.
     // Example result:
@@ -923,9 +966,38 @@ export const getDeck = async (
     //     avatar_url: "https://i.pravatar.cc/150?u=U3", created_at: ...
     //   }
     // }
-    const hackCards = await getHackCardsByUserId(
-      selectedCandidates.map((candidate) => candidate.id)
+    // const hackCards = await getHackCardsByUserId(
+    //   selectedCandidates.map((candidate) => candidate.id)
+    // );
+
+
+    // Fetch hack cards for ALL eligible candidates up front so we can filter
+    // out incomplete profiles before randomly selecting the deck slice.
+    const allEligibleHackCards = await getHackCardsByUserId(
+      eligibleCandidates.map((candidate) => candidate.id)
     );
+
+    const completeCandidates: { id: string; data: MatchUserDoc }[] = [];
+    const incompleteUserIds: string[] = [];
+
+    eligibleCandidates.forEach((candidate) => {
+      const hackCardData = allEligibleHackCards.get(candidate.id) ?? null;
+      if (isHackCardProfileComplete(hackCardData)) {
+        completeCandidates.push(candidate);
+      } else {
+        incompleteUserIds.push(candidate.id);
+      }
+    });
+
+    // Fire-and-forget: disable match_enabled for anyone with an incomplete
+    // hack card so future decks (and their own opt-in state) reflect it.
+    void disableIncompleteProfiles(incompleteUserIds);
+
+    // shuffle eligibleCandidates (only those with complete profiles)
+    const selectedCandidates = shuffle(completeCandidates).slice(0, limit);
+
+    // Reuse the hack cards we already fetched — no need to re-fetch.
+    const hackCards = allEligibleHackCards;
 
     // Discord usernames now come straight from each candidate's own
     // hack_cards doc (hack_cards/{uid}.discord) — no external API call needed.
