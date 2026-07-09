@@ -1140,6 +1140,24 @@ export const setApplicationStatusToConfirmedRsvp = async (
 
     const userRef = db.collection("users").doc(UID);
 
+    const userSnap = await userRef.get();
+    if (!userSnap.exists) {
+      res.status(404).json({
+        status: 404,
+        error: "User not found",
+      });
+      return;
+    }
+
+    const currentStatus = userSnap.data()?.status;
+    if (currentStatus !== APPLICATION_STATUS.ACCEPTED) {
+      res.status(403).json({
+        status: 403,
+        error: "Only accepted applicants can confirm RSVP",
+      });
+      return;
+    }
+
     const data: Record<string, unknown> = {
       status: APPLICATION_STATUS.CONFIRMED_RSVP,
       confirmedRsvpAt: FieldValue.serverTimestamp(),

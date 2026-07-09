@@ -25,7 +25,10 @@ export const csrfProtection: RequestHandler = (
     return;
   }
 
-  if (csrfExemptRoutes.some((route) => req.path?.startsWith(route))) {
+  // Exact match (modulo trailing slashes) so routes nested under an
+  // exempt prefix never silently skip CSRF protection.
+  const normalizedPath = req.path?.replace(/\/+$/, "") ?? "";
+  if (csrfExemptRoutes.includes(normalizedPath)) {
     next();
     return;
   }
