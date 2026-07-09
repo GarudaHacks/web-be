@@ -14,10 +14,15 @@ const allowedOrigins = [
   "https://www.portal.garudahacks.com",
   "https://staging-portal.garudahacks.com",
   "https://garudahacks.cloudflareaccess.com",
-  "http://localhost:5173",
-  "https://hoppscotch.io",
-  "chrome-extension://amknoiejhlmhancpahfcfcfhllgkpbld",
 ];
+
+if (process.env.NODE_ENV !== "production") {
+  allowedOrigins.push(
+    "http://localhost:5173",
+    "https://hoppscotch.io",
+    "chrome-extension://amknoiejhlmhancpahfcfcfhllgkpbld",
+  );
+}
 
 const corsOptions: CorsOptions = {
   origin: function (origin, callback) {
