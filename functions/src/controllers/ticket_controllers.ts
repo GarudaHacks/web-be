@@ -2,6 +2,15 @@ import { Request, Response } from "express";
 import { db } from "../config/firebase";
 import { Ticket, formatTicket } from "../models/ticket";
 
+const isMentorOrAdmin = (user: Request["user"]): boolean =>
+  user?.mentor === true || user?.admin === true;
+
+const canModifyTicket = (
+  user: Request["user"],
+  ticket: Partial<Ticket>
+): boolean =>
+  !!user?.uid && (user.uid === ticket.requestorId || isMentorOrAdmin(user));
+
 /**
  * Create a new ticket
  */
@@ -87,13 +96,43 @@ export const updateTicket = async (
     const { id } = req.params;
     const data = req.body as Partial<Ticket>;
 
+    if (!req.user || !req.user.uid) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
     const ticketDoc = db.collection("tickets").doc(id);
     const ticketSnap = await ticketDoc.get();
     if (!ticketSnap.exists) {
       res.status(404).json({ error: "Ticket not found" });
       return;
     }
-    await ticketDoc.update(data);
+
+    const ticket = ticketSnap.data() as Partial<Ticket>;
+    if (!canModifyTicket(req.user, ticket)) {
+      res.status(403).json({ error: "Forbidden: Insufficient permissions" });
+      return;
+    }
+
+    const updates: Partial<Ticket> = {};
+    if (typeof data.topic === "string") updates.topic = data.topic;
+    if (typeof data.description === "string") {
+      updates.description = data.description;
+    }
+    if (typeof data.location === "string") updates.location = data.location;
+    if (Array.isArray(data.tags)) updates.tags = data.tags;
+    if (typeof data.resolved === "boolean") updates.resolved = data.resolved;
+    // Only mentors/admins can mark a ticket as taken
+    if (typeof data.taken === "boolean" && isMentorOrAdmin(req.user)) {
+      updates.taken = data.taken;
+    }
+
+    if (Object.keys(updates).length === 0) {
+      res.status(400).json({ error: "No valid fields to update" });
+      return;
+    }
+
+    await ticketDoc.update(updates);
 
     res.status(200).json({ success: true, message: "Ticket updated" });
   } catch (error) {
@@ -111,12 +150,24 @@ export const deleteTicket = async (
   try {
     const { id } = req.params;
 
+    if (!req.user || !req.user.uid) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
     const ticketDoc = db.collection("tickets").doc(id);
     const ticketSnap = await ticketDoc.get();
     if (!ticketSnap.exists) {
       res.status(404).json({ error: "Ticket not found" });
       return;
     }
+
+    const ticket = ticketSnap.data() as Partial<Ticket>;
+    if (!canModifyTicket(req.user, ticket)) {
+      res.status(403).json({ error: "Forbidden: Insufficient permissions" });
+      return;
+    }
+
     await ticketDoc.delete();
 
     res.status(200).json({ success: true, message: "Ticket deleted" });
