@@ -756,6 +756,22 @@ export const getMatchStatus = async (
   }
 };
 
+const fetchElainaDiscordUser = async (discordUid: string): Promise<{ username?: string } | null> => {
+  if (!discordUid) {
+    return null;
+  }
+  try {
+    const res = await fetch(`https://elaina.garudahacks.com/api/user/${discordUid}`);
+    if (!res.ok) {
+      return null;
+    }
+    return await res.json();
+  } catch (err) {
+    functions.logger.error(`Failed to fetch elaina discord user for ${discordUid}: ${(err as Error).message}`);
+    return null;
+  }
+};
+
 export const optInToMatch = async (
   req: Request,
   res: Response
@@ -794,12 +810,34 @@ export const optInToMatch = async (
     // Require a fully filled-out hack card before allowing opt-in — same
     // completeness rule enforced against candidates in getDeck.
     const ownHackCardSnap = await db.collection(HACK_CARDS).doc(uid).get();
-    const ownHackCardData = ownHackCardSnap.exists ? (ownHackCardSnap.data() as HackCardDoc) : null;
+    let ownHackCardData = ownHackCardSnap.exists ? (ownHackCardSnap.data() as HackCardDoc) : null;
+
+    if (
+      (ownHackCardData?.discord === undefined || ownHackCardData?.discord === "") &&
+          userData.discord_uid != null &&
+          userData.discord_uid !== ""
+    ) {
+      const elainaDiscordUser = await fetchElainaDiscordUser(userData.discord_uid);
+      const resolvedDiscordUsername = elainaDiscordUser?.username ?? "";
+
+      if (resolvedDiscordUsername) {
+        await db.collection(HACK_CARDS).doc(uid).set(
+          {discord: resolvedDiscordUsername},
+          {merge: true}
+        );
+        ownHackCardData = {
+          ...(ownHackCardData ?? {}),
+          discord: resolvedDiscordUsername,
+        } as HackCardDoc;
+      }
+    }
+
     if (!isHackCardProfileComplete(ownHackCardData)) {
       return res.status(403).json({
         error: "You must complete your profile before opting in",
       });
     }
+
 
 
 
@@ -991,7 +1029,7 @@ export const getDeck = async (
 
     // Fire-and-forget: disable match_enabled for anyone with an incomplete
     // hack card so future decks (and their own opt-in state) reflect it.
-    void disableIncompleteProfiles(incompleteUserIds);
+    await disableIncompleteProfiles(incompleteUserIds);
 
     // shuffle eligibleCandidates (only those with complete profiles)
     const selectedCandidates = shuffle(completeCandidates).slice(0, limit);
