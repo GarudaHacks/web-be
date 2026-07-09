@@ -823,7 +823,7 @@ export const hackerGetMyMentorship = async (
       return res.status(404).json({ error: "Cannot find mentorship" })
     }
 
-    if (data.mentorId !== uid) {
+    if (data.hackerId !== uid) {
       return res.status(401).json({ error: "Unauthorized" })
     }
 
