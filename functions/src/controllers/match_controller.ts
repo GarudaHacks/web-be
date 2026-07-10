@@ -834,7 +834,7 @@ export const optInToMatch = async (
 
     if (!isHackCardProfileComplete(ownHackCardData)) {
       return res.status(403).json({
-        error: "You must complete your profile before opting in",
+        error: "Complete your bio, skills, and interests before opting in.",
       });
     }
 
