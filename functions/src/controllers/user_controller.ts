@@ -98,6 +98,68 @@ function formatDateOfBirth(dateOfBirth?: string): string | undefined {
   })
 }
 
+/**
+ * Find the table assignment for the logged in user.
+ *
+ * Looks up the user's team in the `formations` collection
+ * (`members array-contains uid`), then finds the venue table that formation is
+ * seated at in the `tables` collection (`formations array-contains formationId`).
+ * Returns the formation id along with the table's location and number.
+ *
+ * Responds 404 when the user isn't part of any formation. When the formation
+ * exists but hasn't been placed at a table yet, responds 200 with a message
+ * asking the user to reach out to the committees.
+ */
+export const findMyTables = async (
+  req: Request,
+  res: Response
+): Promise<void> => {
+  try {
+    const userId = req.user?.uid;
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+
+    const formationSnap = await db
+      .collection("formations")
+      .where("members", "array-contains", userId)
+      .limit(1)
+      .get();
+
+    if (formationSnap.empty) {
+      res.status(404).json({ error: "No formation found for this user" });
+      return;
+    }
+
+    const formationId = formationSnap.docs[0].id;
+
+    const tableSnap = await db
+      .collection("tables")
+      .where("formations", "array-contains", formationId)
+      .limit(1)
+      .get();
+
+    if (tableSnap.empty) {
+      res.status(200).json({
+        formationId,
+        message: "No table assigned yet. Please reach out to committees.",
+      });
+      return;
+    }
+
+    const tableData = tableSnap.docs[0].data();
+
+    res.status(200).json({
+      formationId,
+      location: (tableData.location ?? "").toString(),
+      tableNumber: Number(tableData.tableNumber) || 0,
+    });
+  } catch (error) {
+    res.status(500).json({ error: (error as Error).message });
+  }
+};
+
 export const getBoardingPassInfo = async (
   req: Request,
   res: Response
