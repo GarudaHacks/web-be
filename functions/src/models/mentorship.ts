@@ -64,5 +64,6 @@ export interface MentorshipAppointmentResponseAsHacker {
   hackerDescription?: string; // desc given needed by hacker
   location: string; // offline or online
   offlineLocation?: string; // to be filled if the location is offline
+  mentorNotes?: string // comment left by the mentor on this appointment
   meetLink?: string; // Google Meet link, set when location is online
 }

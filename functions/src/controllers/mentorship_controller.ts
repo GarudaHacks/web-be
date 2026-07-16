@@ -790,6 +790,7 @@ export const hackerGetMyMentorships = async (
         hackerDescription: m.hackerDescription,
         location: m.location,
         offlineLocation: m.offlineLocation,
+        mentorNotes: m.mentorNotes,
         meetLink: m.meetLink,
       };
     });
