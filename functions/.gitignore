@@ -11,3 +11,7 @@ node_modules/
 
 .env
 service-key.json
+
+# Generated judging-feedback PDFs and per-run send logs (participant data)
+scripts/.exports/
+scripts/logs/
