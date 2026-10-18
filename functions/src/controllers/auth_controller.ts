@@ -1007,17 +1007,3 @@ export const authDiscordMobileCallback = async (req: Request, res: Response): Pr
 
   res.redirect(`garudahacks://discord-callback?code=${code}`);
 };
-
-
-// interface providerUser {
-//   id: string
-//   email: string
-//   username: string
-// }
-// export const handleOAuthLogin(provider: string, providerUser: providerUser) {
-//   let account = await db.
-// }
-
-// {"id":"305684499763691523","username":"_heryan","avatar":"4ade4d3fc38818f7e92da464b915456b","discriminator":"0","public_flags":0,"flags":0,"banner":null,"accent_color":1453968,"global_name":"Ryan","avatar_decoration_data":null,"collectibles":null,"display_name_styles":null,"banner_color":"#162f90","clan":null,"primary_guild":null,"mfa_enabled":false,"locale":"en-US","premium_type":0,"email":"heryandjaruma@gmail.com","verified":true}
-
-// https://cdn.discordapp.com/avatars/305684499763691523/4ade4d3fc38818f7e92da464b915456b.png
