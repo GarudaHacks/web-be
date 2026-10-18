@@ -64,7 +64,6 @@ node_modules/
 
 # dotenv environment variables file
 .env
-.env*
 
 # dataconnect generated files
 .dataconnect
@@ -78,3 +77,6 @@ node_modules/
 
 # build
 */lib
+
+# mac
+.DS_Store

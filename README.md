@@ -1,6 +1,14 @@
 # Garuda Hacks Backend 🚀
 
-The official backend service for Garuda Hacks 6.0, providing robust and scalable APIs for the hackathon platform. Built with Firebase Cloud Functions and TypeScript to ensure reliability and maintainability.
+The official backend service for Garuda Hacks 6.0-7.0.
+
+## High-level Workflow
+
+The main working directory of the backend will be in `functions`. While the outer part is mostly for firebase-related configs.
+
+Most docs are written in `docs` subfolder. Some of it might not be really detailed, but it should give you the overall documentations of the app.
+
+Majority of development were done within MacOS. Adjust accordingly if you find problem for OS incompability during development.
 
 ## 🛠️ Tech Stack
 
@@ -24,14 +32,10 @@ The official backend service for Garuda Hacks 6.0, providing robust and scalable
   - Firebase Hosting
   - Firebase Cloud Functions
 
+- **Storage**
+  - Firebase Storage
+
 ## 🚀 Getting Started
-
-### Prerequisites
-
-- Node.js (v20 or higher)
-- npm or yarn
-- Firebase CLI (`npm install -g firebase-tools`)
-- Firebase account
 
 ### Installation
 
@@ -40,6 +44,7 @@ The official backend service for Garuda Hacks 6.0, providing robust and scalable
 ```bash
 git clone https://github.com/your-username/web-be.git
 cd web-be
+cd functions
 ```
 
 2. Install dependencies
@@ -96,14 +101,7 @@ web-be/
 
 ## 🔧 Configuration
 
-### Environment Variables
-
-Required environment variables:
-
-- `FIREBASE_PROJECT_ID`
-- `FIREBASE_PRIVATE_KEY`
-- `FIREBASE_CLIENT_EMAIL`
-- `NODE_ENV`
+Refer to `.env.example` for all environments used within the project. Search for any usage from your code editor if you are not sure what it is used for.
 
 ## 🤝 Contributing
 

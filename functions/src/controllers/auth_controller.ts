@@ -89,12 +89,14 @@ export const login = async (req: Request, res: Response): Promise<void> => {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
+        maxAge: SESSION_EXPIRY_SECONDS,
       });
       // non http only cookie
       res.cookie("XSRF-TOKEN", csrfToken, {
         httpOnly: false,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
+        maxAge: SESSION_EXPIRY_SECONDS,
       });
     } catch (e) {
       functions.logger.error("Error when returning session for login", e);
@@ -238,12 +240,14 @@ export const register = async (req: Request, res: Response): Promise<void> => {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
+        maxAge: SESSION_EXPIRY_SECONDS,
       });
       // non http only cookie
       res.cookie("XSRF-TOKEN", csrfToken, {
         httpOnly: false,
         secure: process.env.NODE_ENV === "production",
         sameSite: "strict",
+        maxAge: SESSION_EXPIRY_SECONDS,
       });
     } catch (e) {
       functions.logger.error("Error when returning session for register", e);
@@ -432,12 +436,14 @@ export const sessionLogin = async (
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
+      maxAge: SESSION_EXPIRY_SECONDS,
     });
     // non http only cookie
     res.cookie("XSRF-TOKEN", csrfToken, {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
+      maxAge: SESSION_EXPIRY_SECONDS,
     });
 
     const authResponse: AuthResponse = {
@@ -487,6 +493,25 @@ export const sessionCheck = async (
     // Get user data to check email verification status
     const user = await auth.getUser(decodedSessionCookie.sub);
     const userDoc = await db.collection("users").doc(user.uid).get();
+
+    // Re-issue the CSRF cookies so they stay in sync with the long-lived
+    // __session cookie. They are otherwise session-scoped and can be dropped
+    // by the browser while __session survives, which silently breaks
+    // state-changing POSTs (e.g. mentorship booking) until the next login.
+    // Reuse the existing token when present so we don't rotate it needlessly.
+    const csrfToken = req.cookies["CSRF-TOKEN"] ?? generateCsrfToken();
+    res.cookie("CSRF-TOKEN", csrfToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: SESSION_EXPIRY_SECONDS,
+    });
+    res.cookie("XSRF-TOKEN", csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: SESSION_EXPIRY_SECONDS,
+    });
 
     const authResponse: AuthResponse = {
       uid: user.uid,
@@ -805,12 +830,14 @@ export const authDiscord = async (
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
+      maxAge: SESSION_EXPIRY_SECONDS,
     });
     // non http only cookie
     res.cookie("XSRF-TOKEN", csrfToken, {
       httpOnly: false,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
+      maxAge: SESSION_EXPIRY_SECONDS,
     });
 
     const [userDoc, signedInUser] = await Promise.all([
@@ -980,17 +1007,3 @@ export const authDiscordMobileCallback = async (req: Request, res: Response): Pr
 
   res.redirect(`garudahacks://discord-callback?code=${code}`);
 };
-
-
-// interface providerUser {
-//   id: string
-//   email: string
-//   username: string
-// }
-// export const handleOAuthLogin(provider: string, providerUser: providerUser) {
-//   let account = await db.
-// }
-
-// {"id":"305684499763691523","username":"_heryan","avatar":"4ade4d3fc38818f7e92da464b915456b","discriminator":"0","public_flags":0,"flags":0,"banner":null,"accent_color":1453968,"global_name":"Ryan","avatar_decoration_data":null,"collectibles":null,"display_name_styles":null,"banner_color":"#162f90","clan":null,"primary_guild":null,"mfa_enabled":false,"locale":"en-US","premium_type":0,"email":"heryandjaruma@gmail.com","verified":true}
-
-// https://cdn.discordapp.com/avatars/305684499763691523/4ade4d3fc38818f7e92da464b915456b.png
